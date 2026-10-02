@@ -1276,9 +1276,16 @@ function timeLeft(m) {
   return `${mn}d`;
 }
 
+function isKemalAtak(name) {
+  if (!name) return false;
+  const s = String(name).toUpperCase();
+  // "ŞEMSETTİN KEMAL ATAK", "Ş. KEMAL ATAK", "KEMAL ATAK", "ATAK KEMAL" hepsini eksiksiz yakalar
+  return s.includes('KEMAL ATAK') || (s.includes('KEMAL') && s.includes('ATAK'));
+}
+
 function myRole(h1,h2) {
-  if ((h1||'').includes('KEMAL ATAK')) return 'Başhakem';
-  if ((h2||'').includes('KEMAL ATAK')) return '2. Hakem';
+  if (isKemalAtak(h1)) return 'Başhakem';
+  if (isKemalAtak(h2)) return '2. Hakem';
   return '—';
 }
 
@@ -1366,7 +1373,7 @@ window.renderHafta = function() {
   const period=document.getElementById('ph-period')?.value||'all';
   const now=new Date();
   let data=wk===''?Object.values(HAFTA).flat():(HAFTA[parseInt(wk)]||[]);
-  if(mine) data=data.filter(m=>(m.h1+m.h2).toUpperCase().includes('KEMAL ATAK'));
+  if(mine) data=data.filter(m=>isKemalAtak(m.h1)||isKemalAtak(m.h2));
   if(search) data=data.filter(m=>(m.ev+m.dep+m.salon).toUpperCase().includes(search));
   if(period==='past')   data=data.filter(m=>new Date(parseTarih(m.tarih)+'T'+(m.saat||'23:59'))<now);
   if(period==='future') data=data.filter(m=>new Date(parseTarih(m.tarih)+'T'+(m.saat||'23:59'))>=now);
@@ -1404,7 +1411,7 @@ window.renderOkul=function(){
   const search=(document.getElementById('po-search')?.value||'').toUpperCase();
   const src=document.getElementById('po-src')?.value||'all';
   let data=src==='all'?[...OKUL.current,...OKUL.arsiv]:src==='current'?[...OKUL.current]:[...OKUL.arsiv];
-  data=data.filter(m=>(m.h1||'').toUpperCase().includes('KEMAL ATAK')||(m.h2||'').toUpperCase().includes('KEMAL ATAK'));
+  data=data.filter(m=>isKemalAtak(m.h1)||isKemalAtak(m.h2));
   if(search) data=data.filter(m=>(m.salon+m.org).toUpperCase().includes(search));
   document.getElementById('po-count').textContent=data.length+' maç';
   const tb=document.getElementById('okul-body');
@@ -1433,7 +1440,7 @@ window.renderOkul=function(){
 
 window.renderOzel=function(){
   const search=(document.getElementById('pz-search')?.value||'').toUpperCase();
-  let data=OZEL.filter(m=>(m.h1||'').toUpperCase().includes('KEMAL ATAK')||(m.h2||'').toUpperCase().includes('KEMAL ATAK'));
+  let data=OZEL.filter(m=>isKemalAtak(m.h1)||isKemalAtak(m.h2));
   if(search) data=data.filter(m=>(m.salon+m.org).toUpperCase().includes(search));
   document.getElementById('pz-count').textContent=data.length+' maç';
   const tb=document.getElementById('ozel-body');
@@ -2586,73 +2593,167 @@ window.driveAutoSync = async function() {
 };
 
 // Yardımcı: satırda benim adım var mı?
-function isMyRow_bolge(r) {
-  return (r.h1||'').toUpperCase().includes('KEMAL ATAK') ||
-         (r.h2||'').toUpperCase().includes('KEMAL ATAK');
-}
-function isMyRow_okul(r) {
-  return (r.h1||'').toUpperCase().includes('KEMAL ATAK') ||
-         (r.h2||'').toUpperCase().includes('KEMAL ATAK');
-}
-function isMyRow_ozel(r) {
-  return (r.h1||'').toUpperCase().includes('KEMAL ATAK') ||
-         (r.h2||'').toUpperCase().includes('KEMAL ATAK');
-}
+function isMyRow_bolge(r) { return isKemalAtak(r.h1) || isKemalAtak(r.h2); }
+function isMyRow_okul(r)  { return isKemalAtak(r.h1) || isKemalAtak(r.h2); }
+function isMyRow_ozel(r)  { return isKemalAtak(r.h1) || isKemalAtak(r.h2); }
 
-// Tümünü Firebase'e kaydet
+// Tümünü Firebase'e kaydet (Doğrudan ve Hatasız)
 window.driveSaveAllToFirebase = async function() {
-  const weekNo = parseInt(document.getElementById('drive-bolge-week')?.value || '0') || null;
-  let saved = 0; let skipped = 0;
-
   const btn = document.getElementById('btn-drive-save-all');
-  if(btn) { btn.disabled=true; btn.textContent='⏳ Kaydediliyor...'; }
+  if(btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
 
-  // Bölge Maçları → HAFTA yapısına ekle (Haftalara göre otomatik gruplanır)
-  if(_drivePendingBolge.length > 0) {
-    const byWeek = {};
-    for (const m of _drivePendingBolge) {
-      const wk = weekNo || m.weekNo || 1;
-      if (!byWeek[wk]) byWeek[wk] = [];
-      byWeek[wk].push(m);
+  let saved = 0;
+  let skipped = 0;
+  const newMatchesForTg = [];
+
+  const existLT = new Set(matches.map(m => m.date + '|' + (m.time || '') + '|' + (m.location || '')));
+  const existK = new Set(matches.map(m => m.date + '|' + (m.time || '') + '|' + (m.home || '') + '|' + (m.away || '')));
+
+  // 1. BÖLGE MAÇLARI
+  for (const m of _drivePendingBolge) {
+    const dateStr = parseTarih(m.tarih);
+    const rol = myRole(m.h1, m.h2);
+    const bFee = rol === 'Başhakem' ? FEES.bolge_1 : FEES.bolge_2;
+    const wk = m.weekNo || 1;
+    const lt = dateStr + '|' + (m.saat || '') + '|' + (m.salon || '');
+    const kk = dateStr + '|' + (m.saat || '') + '|' + (m.ev || '') + '|' + (m.dep || '');
+
+    if (existLT.has(lt) || existK.has(kk)) {
+      skipped++;
+      continue;
     }
-    for (const [wkStr, list] of Object.entries(byWeek)) {
-      const wk = parseInt(wkStr);
-      try {
-        window._csvData = window._csvData || {};
-        window._csvData['bolge'] = list;
-        window._csvMeta = window._csvMeta || {};
-        window._csvMeta['bolge'] = { week: wk, label: wk + '. Hafta (Drive)', src: 'Drive Otomasyon' };
-        await csvSave('bolge');
-        saved += list.length;
-      } catch(e) { console.error('Bölge kayıt hatası (Hafta ' + wk + '):', e); }
+
+    try {
+      const docData = {
+        home: m.ev || '—',
+        away: m.dep || '—',
+        date: dateStr,
+        time: m.saat || '',
+        league: (m.kat || '') + (wk ? (' — ' + wk + '. Hafta') : ''),
+        location: m.salon || '',
+        role: rol,
+        fee: bFee,
+        payment: 'Bekleniyor',
+        notes: m.grup || '',
+        category: 'bolge',
+        season: getMatchSeason({ date: dateStr }),
+        createdAt: new Date().toISOString(),
+        csvImported: true
+      };
+      const docRef = await addDoc(col, docData);
+      matches.push({ id: docRef.id, ...docData });
+      existLT.add(lt);
+      existK.add(kk);
+      saved++;
+      newMatchesForTg.push(docData);
+    } catch(e) { console.error('Bölge maç kayıt hatası:', e); }
+  }
+
+  // 2. OKUL MAÇLARI
+  for (const m of _drivePendingOkul) {
+    const dateStr = parseTarih(m.tarih);
+    const rol = myRole(m.h1, m.h2);
+    const lt = dateStr + '|' + (m.saat || '') + '|' + (m.salon || '');
+
+    if (existLT.has(lt)) {
+      skipped++;
+      continue;
     }
-  }
 
-  if(_drivePendingOkul.length > 0) {
     try {
-      window._csvData = window._csvData || {};
-      window._csvData['okul'] = _drivePendingOkul;
-      window._csvMeta = window._csvMeta || {};
-      window._csvMeta['okul'] = { label: 'Drive Otomasyon', src: 'Drive' };
-      await csvSave('okul');
-      saved += _drivePendingOkul.length;
-    } catch(e) { console.error('Okul kayıt hatası', e); }
+      const docData = {
+        home: m.org || '—',
+        away: m.grup || '—',
+        date: dateStr,
+        time: m.saat || '',
+        league: (m.org || '') + (m.org ? ' — Okul İl/İlçe' : 'Okul İl/İlçe'),
+        location: m.salon || '',
+        role: rol,
+        fee: FEES.okul,
+        payment: 'Bekleniyor',
+        notes: 'Okul İl ve İlçe',
+        category: 'okul',
+        season: getMatchSeason({ date: dateStr }),
+        createdAt: new Date().toISOString(),
+        csvImported: true
+      };
+      const docRef = await addDoc(col, docData);
+      matches.push({ id: docRef.id, ...docData });
+      existLT.add(lt);
+      saved++;
+      newMatchesForTg.push(docData);
+    } catch(e) { console.error('Okul maç kayıt hatası:', e); }
   }
 
-  if(_drivePendingOzel.length > 0) {
+  // 3. ÖZEL LİG MAÇLARI
+  for (const m of _drivePendingOzel) {
+    const dateStr = parseTarih(m.tarih);
+    const rol = myRole(m.h1, m.h2);
+    const orgText = ((m.org || '') + ' ' + (m.kat || '') + ' ' + (m.a || '')).toUpperCase();
+    const is1700 = orgText.includes('GELİŞİM') || orgText.includes('GELISIM') || orgText.includes('MASTER');
+    const autoFee = is1700 ? 1700 : 0;
+    const lt = dateStr + '|' + (m.saat || '') + '|' + (m.salon || '');
+    const kk = dateStr + '|' + (m.saat || '') + '|' + (m.a || m.org || '') + '|' + (m.b || '—');
+
+    if (existLT.has(lt) || existK.has(kk)) {
+      skipped++;
+      continue;
+    }
+
     try {
-      window._csvData = window._csvData || {};
-      window._csvData['ozel'] = _drivePendingOzel;
-      window._csvMeta = window._csvMeta || {};
-      window._csvMeta['ozel'] = { label: 'Drive Otomasyon', src: 'Drive' };
-      await csvSave('ozel');
-      saved += _drivePendingOzel.length;
-    } catch(e) { console.error('Özel kayıt hatası', e); }
+      const docData = {
+        home: m.a || m.org || '—',
+        away: m.b || '—',
+        date: dateStr,
+        time: m.saat || '',
+        league: m.org || '',
+        location: m.salon || '',
+        role: rol,
+        fee: autoFee,
+        payment: 'Bekleniyor',
+        notes: 'Özel Lig & Üniversite',
+        category: 'ozel',
+        season: getMatchSeason({ date: dateStr }),
+        createdAt: new Date().toISOString(),
+        csvImported: true
+      };
+      const docRef = await addDoc(col, docData);
+      matches.push({ id: docRef.id, ...docData });
+      existLT.add(lt);
+      existK.add(kk);
+      saved++;
+      newMatchesForTg.push(docData);
+    } catch(e) { console.error('Özel lig maç kayıt hatası:', e); }
   }
 
-  toast(`✅ ${saved} maç Firebase'e kaydedildi!`, 'ok');
+  // UI Güncelle
+  renderAll();
   driveResetResults();
-  if(btn) { btn.disabled=false; btn.textContent='✓ Tümünü Firebase\'e Kaydet'; }
+
+  if (saved > 0) {
+    toast(`✅ ${saved} maç Firebase'e eklendi ve Gelecek Maçlar'a aktarıldı!`, 'ok');
+
+    // TELEGRAM BİLDİRİMİ GÖNDER
+    const tgToken = LS.getItem('rt_tg_token');
+    const tgChatId = LS.getItem('rt_tg_chat_id');
+    if (tgToken && tgChatId) {
+      for (const m of newMatchesForTg) {
+        try {
+          const text = formatMatchTg(m, '🆕 YENİ MAÇ ATANDI!');
+          await sendTelegram(text);
+        } catch(e) { console.warn('Tg send err:', e); }
+      }
+      toast('✈️ Maçlar Telegram\'a iletildi!', 'ok');
+    } else {
+      toast('ℹ️ Maçlar eklendi. Telegram bildirimi için "Bildirimler" sekmesinden botunu bağlayabilirsin.', 'info');
+    }
+  } else if (skipped > 0) {
+    toast(`ℹ️ Bulunan maçlar zaten sistemde kayıtlı (${skipped} maç atlandı).`, 'info');
+  } else {
+    toast(`⚠️ Kaydedilecek maç bulunamadı.`, 'err');
+  }
+
+  if(btn) { btn.disabled = false; btn.textContent = '✓ Tümünü Firebase\'e Kaydet'; }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2764,7 +2865,7 @@ window.csvSave=async function(cat){
   const myRows=rows.filter(r=>myRole2(r.h1,r.h2)!=='—');
 
   if(cat==='bolge'){
-    const weekNo=parseInt(document.getElementById('csv-bolge-week').value);
+    const weekNo = (window._csvMeta && window._csvMeta['bolge'] && window._csvMeta['bolge'].week) || parseInt(document.getElementById('csv-bolge-week')?.value) || 1;
     if(!weekNo||weekNo<1||weekNo>52){showCsvErr('bolge','Geçerli hafta numarası gir (1-52)');return;}
 
     // Yerel programa ekle

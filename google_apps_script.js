@@ -81,12 +81,19 @@ function gunlukMacKontrolu() {
 }
 
 // ─── TABLODA KEMAL ATAK ARAMA ────────────────────────────────────────────
+function isMyReferee(str) {
+  if (!str) return false;
+  const s = String(str).toUpperCase();
+  // "ŞEMSETTİN KEMAL ATAK", "Ş. KEMAL ATAK", "KEMAL ATAK", "ATAK KEMAL" hepsini yakalar
+  return s.includes("KEMAL ATAK") || (s.includes("KEMAL") && s.includes("ATAK"));
+}
+
 function scanSheetForMatches(sheet, fileName, results) {
   const data = sheet.getDataRange().getValues();
   for (let r = 0; r < data.length; r++) {
     const row = data[r];
     const rowStr = row.join(" ").toUpperCase();
-    if (rowStr.includes(REFEREE_NAME)) {
+    if (isMyReferee(rowStr)) {
       // Satırdan maç bilgilerini çıkar
       const match = parseMatchRow(row, fileName);
       if (match) results.push(match);

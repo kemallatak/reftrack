@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, max-snippet:0">
 <title>RefTrack — Hakem Paneli</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -133,6 +135,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .btn-ghost:hover{background:rgba(255,255,255,0.1);color:var(--text);transform:translateY(-1px)}
 .btn-danger{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.3)}
 .btn-danger:hover{background:rgba(239,68,68,.2);transform:translateY(-1px)}
+.btn-green{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
+.btn-green:hover{background:rgba(16,185,129,.25);transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,185,129,.2)}
 .btn-sm{padding:8px 16px;font-size:12px;border-radius:10px}
 .btn-green{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
 .ua{background:linear-gradient(135deg,rgba(255,107,0,.15),rgba(255,107,0,.03));border:1px solid rgba(255,107,0,.3);border-radius:16px;padding:18px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;backdrop-filter:blur(10px)}
@@ -242,6 +246,40 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 </head>
 <body>
 
+<!-- KİLİT EKRANI (GÜVENLİK / ŞİFRELEME) -->
+<div id="app-lock" style="position:fixed;inset:0;background:#030407;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background-image:radial-gradient(circle at 50% 25%, rgba(255, 107, 0, 0.12) 0%, transparent 65%), radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%)">
+  <div style="width:100%;max-width:360px;background:rgba(20,24,30,0.85);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:36px 28px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,0.7)">
+    <div style="font-size:44px;margin-bottom:12px;filter:drop-shadow(0 0 16px rgba(255,107,0,0.4))">🔒</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--text);letter-spacing:-0.5px">Ref<span style="color:var(--acc)">Track</span></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px;font-family:'DM Sans',sans-serif">Güvenli Hakem Paneli Girişi</div>
+
+    <form onsubmit="event.preventDefault();submitPin();" style="margin-top:24px">
+      <div style="position:relative;margin-bottom:14px">
+        <input type="password" id="lock-pin-input" placeholder="Şifrenizi girin" autocomplete="current-password" autofocus
+          style="width:100%;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px 16px;color:#fff;font-size:16px;text-align:center;letter-spacing:3px;outline:none;transition:all .2s;font-family:'DM Mono',monospace"
+          onfocus="this.style.borderColor='var(--acc)';this.style.boxShadow='0 0 0 3px rgba(255,107,0,0.2)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.15)';this.style.boxShadow='none'">
+      </div>
+      
+      <div id="lock-err-msg" style="color:#ef4444;font-size:12px;margin-bottom:12px;display:none;font-weight:500">❌ Hatalı şifre! Lütfen tekrar deneyin.</div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;padding:14px;border-radius:14px;font-size:14px;font-weight:700;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(255,107,0,0.35);cursor:pointer">
+        Giriş Yap →
+      </button>
+
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px">
+        <input type="checkbox" id="lock-remember-me" checked style="accent-color:var(--acc);cursor:pointer">
+        <label for="lock-remember-me" style="font-size:12px;color:var(--muted);cursor:pointer">Bu cihazda beni hatırla</label>
+      </div>
+    </form>
+
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;color:var(--muted);line-height:1.5">
+      İlk giriş için varsayılan şifre: <strong style="color:var(--acc)">1923</strong><br>
+      <span style="font-size:10px;opacity:.7">Giriş yaptıktan sonra sol menüden şifreni değiştirebilirsin.</span>
+    </div>
+  </div>
+</div>
+
 <div id="loading">
   <div class="load-title">🏀 RefTrack</div>
   <div class="spin"></div>
@@ -252,6 +290,100 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </button>
 </div>
 <script>
+// Güvenlik & Şifre Yönetimi (PIN Girişi)
+(function() {
+  try {
+    var isAuthed = localStorage.getItem('rt_auth_session') === '1' || sessionStorage.getItem('rt_auth_session') === '1';
+    var lockEl = document.getElementById('app-lock');
+    if (isAuthed && lockEl) {
+      lockEl.style.display = 'none';
+    } else if (lockEl) {
+      lockEl.style.display = 'flex';
+      setTimeout(function() {
+        var pinInp = document.getElementById('lock-pin-input');
+        if (pinInp) pinInp.focus();
+      }, 100);
+    }
+  } catch(e) {}
+})();
+
+function safeToast(msg, type) {
+  if (typeof window.toast === 'function') {
+    window.toast(msg, type);
+  } else {
+    var wrap = document.getElementById('toasts');
+    if (wrap) {
+      var el = document.createElement('div');
+      el.className = 'toast' + (type === 'ok' ? ' ok' : type === 'err' ? ' err' : '');
+      el.textContent = msg;
+      wrap.appendChild(el);
+      setTimeout(function(){ el.remove(); }, 3500);
+    }
+  }
+}
+
+window.submitPin = function() {
+  var input = document.getElementById('lock-pin-input');
+  var err = document.getElementById('lock-err-msg');
+  var remember = document.getElementById('lock-remember-me') ? document.getElementById('lock-remember-me').checked : true;
+  var correctPin = localStorage.getItem('rt_user_pin') || '1923';
+  if ((input ? input.value : '').trim() === correctPin) {
+    if (remember) {
+      localStorage.setItem('rt_auth_session', '1');
+    } else {
+      sessionStorage.setItem('rt_auth_session', '1');
+    }
+    var lockEl = document.getElementById('app-lock');
+    if (lockEl) lockEl.style.display = 'none';
+    if (err) err.style.display = 'none';
+    safeToast('Hoş geldin Kemal! 🏀', 'ok');
+  } else {
+    if (err) err.style.display = 'block';
+    if (input) {
+      input.value = '';
+      input.focus();
+      input.style.borderColor = '#ef4444';
+      input.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.2)';
+    }
+  }
+};
+
+window.lockApp = function() {
+  localStorage.removeItem('rt_auth_session');
+  sessionStorage.removeItem('rt_auth_session');
+  var lockEl = document.getElementById('app-lock');
+  var inp = document.getElementById('lock-pin-input');
+  var err = document.getElementById('lock-err-msg');
+  if (err) err.style.display = 'none';
+  if (inp) {
+    inp.value = '';
+    inp.style.borderColor = 'rgba(255,255,255,0.15)';
+    inp.style.boxShadow = 'none';
+  }
+  if (lockEl) {
+    lockEl.style.display = 'flex';
+    if (inp) inp.focus();
+  }
+  safeToast('Panel kilitlendi 🔒', 'info');
+};
+
+window.changePinModal = function() {
+  var currentPin = localStorage.getItem('rt_user_pin') || '1923';
+  var old = prompt('Mevcut şifrenizi girin:');
+  if (old === null) return;
+  if (old.trim() !== currentPin) {
+    alert('❌ Mevcut şifre hatalı!');
+    return;
+  }
+  var newPin = prompt('Yeni şifrenizi belirleyin (en az 4 karakter):');
+  if (!newPin || newPin.trim().length < 4) {
+    alert('⚠️ Şifre en az 4 karakter olmalıdır.');
+    return;
+  }
+  localStorage.setItem('rt_user_pin', newPin.trim());
+  safeToast('🔑 Şifreniz başarıyla güncellendi!', 'ok');
+};
+
 setTimeout(function(){
   var b=document.getElementById('loading-skip');
   var t=document.getElementById('load-sub-txt');
@@ -274,6 +406,17 @@ setTimeout(function(){
     <div class="logo">Ref<span>Track</span></div>
     <div class="logo-sub">🏀 Basketbol Hakem</div>
   </div>
+  <div style="margin:0 0 16px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border-light);border-radius:14px">
+    <div style="font-size:9px;font-family:'DM Mono',monospace;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+      <span>SEZON</span>
+      <span id="side-season-tag" class="badge b-green" style="font-size:9px;padding:1px 6px">Aktif</span>
+    </div>
+    <select id="season-select" onchange="setSeason(this.value)" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:6px 8px;color:var(--text);font-size:12px;font-weight:600;outline:none;cursor:pointer">
+      <option value="2026-2027" selected>🏀 2026-2027</option>
+      <option value="2025-2026">📁 2025-2026 (Arşiv)</option>
+      <option value="all">🌐 Tüm Sezonlar</option>
+    </select>
+  </div>
   <div class="nav">
     <div class="ns">Ana Menü</div>
     <button class="ni active" onclick="go('dashboard')"><span class="ic">📊</span>Dashboard</button>
@@ -284,6 +427,8 @@ setTimeout(function(){
     <button class="ni" onclick="go('program')"><span class="ic">📋</span>Program</button>
     <button class="ni" onclick="go('add')"><span class="ic">➕</span>Maç Ekle</button>
     <button class="ni" onclick="go('notifications')"><span class="ic">🔔</span>Bildirimler</button>
+    <button class="ni" onclick="changePinModal()"><span class="ic">🔑</span>Şifre</button>
+    <button class="ni" onclick="lockApp()"><span class="ic">🔒</span>Kilitle</button>
   </div>
 </nav>
 
@@ -293,7 +438,10 @@ setTimeout(function(){
 <div id="page-dashboard" class="page active">
   <div class="dash-hero">
     <div class="dash-hero-left">
-      <div class="dash-greeting" id="dash-greeting">İyi günler</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div class="dash-greeting" id="dash-greeting">İyi günler</div>
+        <span id="dash-season-badge" class="badge b-green" style="font-size:11px;font-family:'DM Mono',monospace">2026-2027 (Aktif)</span>
+      </div>
       <div class="dash-name">Şemsettin <span>Kemal Atak</span></div>
       <div class="dash-date" id="today-date"></div>
       <div class="dash-love">💛 Hoş geldiniz aşkım yavrum Zeynepela — favori hakeminizi buradan takip edebilirsiniz 🏀</div>
@@ -456,6 +604,7 @@ setTimeout(function(){
     <button class="tab-btn" id="ptab-okul" onclick="progTab('okul')">🏫 Okul İl ve İlçe</button>
     <button class="tab-btn" id="ptab-ozel" onclick="progTab('ozel')">🏆 Özel Lig & Üniversite</button>
     <button class="tab-btn" id="ptab-csv" onclick="progTab('csv')" style="border-color:rgba(96,165,250,.4);color:#60a5fa">⬆️ CSV Yükle</button>
+    <button class="tab-btn" id="ptab-drive" onclick="progTab('drive')" style="border-color:rgba(16,185,129,.4);color:#34d399;font-weight:700">🤖 Drive Otomasyon</button>
   </div>
 
   <!-- Hafta -->
@@ -542,6 +691,10 @@ setTimeout(function(){
             </div>
           </div>
         </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div class="fg" style="flex:1"><label>Google Sheets Linki ile Yükle</label><input type="text" id="sheet-url-bolge" placeholder="https://docs.google.com/spreadsheets/d/.../edit..."></div>
+          <button class="btn btn-primary" onclick="fetchFromSheet('bolge')" style="padding:12px 20px" id="btn-sheet-bolge">⚡ Çek</button>
+        </div>
         <div class="csv-drop" onclick="document.getElementById('csv-bolge-input').click()"
           ondragover="event.preventDefault();this.style.borderColor='var(--acc)';this.style.background='rgba(249,115,22,.05)'"
           ondragleave="this.style.borderColor='var(--border)';this.style.background=''"
@@ -579,6 +732,10 @@ setTimeout(function(){
             <input type="file" id="csv-okul-input" accept=".csv,.tsv,.txt" style="display:none" onchange="handleCsv(event,'okul')">
           </div>
         </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div class="fg" style="flex:1"><label>Google Sheets Linki ile Yükle</label><input type="text" id="sheet-url-okul" placeholder="https://docs.google.com/spreadsheets/d/.../edit..."></div>
+          <button class="btn btn-green" onclick="fetchFromSheet('okul')" style="padding:12px 20px" id="btn-sheet-okul">⚡ Çek</button>
+        </div>
         <div class="csv-drop" onclick="document.getElementById('csv-okul-input').click()"
           ondragover="event.preventDefault();this.style.borderColor='var(--green)';this.style.background='rgba(34,197,94,.05)'"
           ondragleave="this.style.borderColor='var(--border)';this.style.background=''"
@@ -615,6 +772,10 @@ setTimeout(function(){
             <button class="btn" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.3)" onclick="document.getElementById('csv-ozel-input').click()">📂 Dosya Seç</button>
             <input type="file" id="csv-ozel-input" accept=".csv,.tsv,.txt" style="display:none" onchange="handleCsv(event,'ozel')">
           </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div class="fg" style="flex:1"><label>Google Sheets Linki ile Yükle</label><input type="text" id="sheet-url-ozel" placeholder="https://docs.google.com/spreadsheets/d/.../edit..."></div>
+          <button class="btn" style="background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.3);padding:12px 20px" onclick="fetchFromSheet('ozel')" id="btn-sheet-ozel">⚡ Çek</button>
         </div>
         <div class="csv-drop" onclick="document.getElementById('csv-ozel-input').click()"
           ondragover="event.preventDefault();this.style.borderColor='#60a5fa';this.style.background='rgba(96,165,250,.05)'"
@@ -655,6 +816,58 @@ setTimeout(function(){
       <tbody id="ozel-body"></tbody></table>
     </div>
   </div>
+
+  <!-- DRIVE OTOMASYON TAB -->
+  <div id="progtab-drive" style="display:none">
+    <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(16,185,129,.02));border-color:rgba(16,185,129,.2)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,.15);display:flex;align-items:center;justify-content:center;font-size:18px">🤖</div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--green)">Drive Otomasyon — 2026-27 Sezonu</div>
+          <div style="font-size:11px;color:var(--muted)">Google Drive klasöründen otomatik maç çekme sistemi</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+        <div class="fg"><label>Google Drive API Key</label><input type="password" id="drive-api-key" placeholder="AIzaSy..." style="font-family:'DM Mono',monospace;font-size:12px"></div>
+        <div class="fg"><label>Klasör ID</label><input type="text" id="drive-folder-id" placeholder="0ByPao_qBUjN-..." style="font-family:'DM Mono',monospace;font-size:12px"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-green" onclick="driveSaveSettings()" style="font-size:13px">💾 Kaydet</button>
+        <button class="btn btn-primary" id="btn-drive-sync" onclick="driveAutoSync()" style="font-size:13px;background:var(--green);box-shadow:0 4px 12px rgba(16,185,129,.3)">🔄 Şimdi Tara &amp; Çek</button>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted2);cursor:pointer;margin-left:auto;user-select:none"><input type="checkbox" id="drive-auto-on-load" onchange="driveSaveSettings()" style="width:14px;height:14px;accent-color:var(--green)"> Her açılışta otomatik tara</label>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">📡 Tarama Durumu</div>
+        <span id="drive-last-check" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">Henüz taranmadı</span>
+      </div>
+      <div id="drive-status" style="font-size:12px;color:var(--muted2);padding:12px;background:rgba(0,0,0,.15);border-radius:10px;border:1px solid var(--border);font-family:'DM Mono',monospace;min-height:40px;white-space:pre-line;line-height:1.7">⏳ Taramak için yukarıdaki butona bas.</div>
+      <div id="drive-files-list" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <div id="drive-results-card" class="card" style="display:none;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">✨ Yeni Maçlar Bulundu</div><div id="drive-results-summary" style="font-size:12px;color:var(--muted);margin-top:3px"></div></div>
+        <div style="display:flex;gap:8px"><button class="btn btn-ghost btn-sm" onclick="driveResetResults()">✕ Temizle</button><button class="btn btn-green btn-sm" id="btn-drive-save-all" onclick="driveSaveAllToFirebase()">✓ Tümünü Firebase'e Kaydet</button></div>
+      </div>
+      <div id="drive-result-bolge-wrap" style="display:none;margin-bottom:16px">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--acc);margin-bottom:8px;display:flex;align-items:center;gap:8px">📋 BÖLGE MAÇLARI <span id="drive-result-bolge-cnt" class="badge b-orange">0</span><span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted2)">Hafta No: <input type="number" id="drive-bolge-week" placeholder="ör:36" min="1" max="52" style="width:72px;background:rgba(0,0,0,.2);border:1px solid var(--border-light);border-radius:8px;padding:4px 8px;color:var(--text);font-size:11px;outline:none"></span></div>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Tarih</th><th>Salon</th><th>Saat</th><th>A Takımı</th><th>B Takımı</th><th>Kategori</th><th>Grup</th><th>1. Hakem</th><th>2. Hakem</th><th>Rolüm</th></tr></thead><tbody id="drive-result-bolge-body"></tbody></table></div>
+      </div>
+      <div id="drive-result-okul-wrap" style="display:none;margin-bottom:16px">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:8px">🏫 OKUL İL VE İLÇE <span id="drive-result-okul-cnt" class="badge b-green">0</span></div>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Tarih</th><th>Saat</th><th>Salon</th><th>Organizasyon</th><th>Grup</th><th>1. Hakem</th><th>2. Hakem</th><th>Rolüm</th></tr></thead><tbody id="drive-result-okul-body"></tbody></table></div>
+      </div>
+      <div id="drive-result-ozel-wrap" style="display:none;margin-bottom:16px">
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:#60a5fa;margin-bottom:8px;display:flex;align-items:center;gap:8px">🏆 ÖZEL LİG &amp; ÜNİVERSİTE <span id="drive-result-ozel-cnt" class="badge b-blue">0</span></div>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Tarih</th><th>Salon</th><th>Saat</th><th>A Takımı</th><th>B Takımı</th><th>Organizasyon</th><th>Kategori</th><th>1. Hakem</th><th>2. Hakem</th><th>Rolüm</th></tr></thead><tbody id="drive-result-ozel-body"></tbody></table></div>
+      </div>
+    </div>
+    <div class="card" style="background:rgba(255,107,0,.03);border-color:rgba(255,107,0,.12)">
+      <div style="font-size:12px;color:var(--muted);line-height:2"><strong style="color:var(--acc)">ℹ️ Nasıl Çalışır?</strong><br>• Drive klasöründeki tüm Google Sheets dosyaları otomatik taranır<br>• Dosya adına göre: <code style="font-size:10px;background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px">xx.HAFTA</code> → Bölge &nbsp;|&nbsp; <code style="font-size:10px;background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px">OKUL</code> → Okul &nbsp;|&nbsp; <code style="font-size:10px;background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px">ÖZEL / ARŞİV / ÜNİVERSİTE</code> → Özel Lig<br>• Her dosyada <strong style="color:var(--text)">KEMAL ATAK</strong> adı aranır — sadece senin maçların listelenir<br>• Firebase'de zaten kayıtlı olanlar otomatik atlanır (duplicate koruması)</div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ADD -->
@@ -668,7 +881,7 @@ setTimeout(function(){
           <optgroup label="Erkekler U18/U16/U14"><option>U18EA</option><option>U18EB</option><option>U18EC</option><option>U16EA</option><option>U16EB</option><option>U16EC</option><option>U14EA</option><option>U14EB</option><option>U14EC</option><option>U14KB</option></optgroup>
           <optgroup label="Erkekler U12/U11/U10"><option>U12EA</option><option>U12EB</option><option>U12EC</option><option>U12KB</option><option>U11EA</option><option>U11EB</option><option>U11EC</option><option>U10EA</option><option>U10EB</option><option>U10EC</option></optgroup>
           <optgroup label="Kızlar"><option>U18KA</option><option>U18KB</option><option>U16KA</option><option>U16KB</option><option>U14KA</option><option>U14KB</option><option>U12KA</option><option>U11KA</option></optgroup>
-          <optgroup label="Diğer"><option>Büyük Erkekler</option><option>Ümit Erkekler</option><option>Gelişim Ligi</option><option>BC Cup</option><option>İlçe / Okul</option><option>Diğer</option></optgroup>
+          <optgroup label="Diğer"><option>Büyük Erkekler</option><option>Ümit Erkekler</option><option>Gelişim Ligi</option><option>Master League</option><option>BC Cup</option><option>İlçe / Okul</option><option>Diğer</option></optgroup>
         </select>
       </div>
       <div class="fg sug-wrap"><label>Ev Sahibi Takım</label><input type="text" id="f-home" placeholder="Takım ara..." autocomplete="off" oninput="suggest('f-home','sl-home')"><div id="sl-home" class="sug-box"></div></div>
@@ -677,7 +890,7 @@ setTimeout(function(){
       <div class="fg"><label>Saat</label><input type="time" id="f-time"></div>
       <div class="fg"><label>Lokasyon / Salon</label><input type="text" id="f-loc" placeholder="Salon adını girin"></div>
       <div class="fg"><label>Hakem Rolü</label>
-        <select id="f-role"><option>Başhakem</option><option>2. Hakem</option><option>3. Hakem</option><option>Masa Görevlisi</option></select>
+        <select id="f-role" onchange="onLeague()"><option>Başhakem</option><option selected>2. Hakem</option><option>3. Hakem</option><option>Masa Görevlisi</option></select>
       </div>
       <div class="fg"><label>Maç Ücreti (₺)</label><input type="number" id="f-fee" placeholder="0" min="0"></div>
       <div class="fg"><label>Ödeme Durumu</label>
@@ -694,62 +907,164 @@ setTimeout(function(){
 
 <!-- NOTIFICATIONS -->
 <div id="page-notifications" class="page">
-  <div class="ph"><div><div class="pt">Bildirim <span>Ayarları</span></div><div class="ps">Telefona native bildirim — backend yok, ücretsiz</div></div></div>
+  <div class="ph">
+    <div>
+      <div class="pt">Bildirim &amp; <span>Otomasyon</span></div>
+      <div class="ps">Telegram Botu ile telefona anlık kilit ekranı uyarısı ve otomatik maç takibi</div>
+    </div>
+  </div>
+
   <div class="two-col">
-    <div class="card">
-      <div class="card-title">🔔 Push Bildirimleri</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:18px;line-height:1.7">
-        Maç öncesi telefonuna native bildirim gelir. Uygulamayı <strong style="color:var(--text)">Ana Ekrana Ekle</strong> (PWA) olarak yükleyince arka planda da çalışır.
-      </div>
-      <div id="pwa-perm-box" style="border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid var(--border)">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:13px;font-weight:600" id="perm-title">Bildirim İzni</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px" id="perm-sub">Durum kontrol ediliyor...</div>
+    <!-- SOL KOLON: TELEGRAM BOTU & SAATLİ KONTROL -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <!-- KART 1: TELEGRAM BOTU -->
+      <div class="card" style="border:1px solid rgba(59,130,246,0.25);background:linear-gradient(180deg, rgba(59,130,246,0.04) 0%, rgba(20,24,30,0.6) 100%)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="card-title" style="margin:0;display:flex;align-items:center;gap:8px">
+            <span style="font-size:20px">✈️</span> Telegram Bot Bildirimi
           </div>
-          <button id="btn-req-perm" class="btn btn-primary" onclick="requestPushPermission()" style="display:none;font-size:12px">İzin Ver</button>
+          <span id="tg-status-badge" class="badge b-yellow" style="font-size:11px">Ayar Bekleniyor</span>
         </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+          Maç atamaların, günlük maç programın ve son 2 saat hatırlatmaları doğrudan <strong>Telegram</strong> üzerinden telefonuna sesli ve kilit ekranı bildirimi olarak gelir.
+        </div>
+
+        <div class="form-grid" style="grid-template-columns:1fr;gap:12px;margin-bottom:14px">
+          <div class="fg">
+            <label style="display:flex;align-items:center;justify-content:space-between">
+              <span>Telegram Bot Token</span>
+              <a href="https://t.me/BotFather" target="_blank" style="color:var(--blue);font-size:11px;text-decoration:none">@BotFather'dan Al ↗</a>
+            </label>
+            <input type="password" id="tg-token" placeholder="Örn: 7123456789:AAHk..." style="font-family:'DM Mono',monospace;font-size:12px">
+          </div>
+          <div class="fg">
+            <label style="display:flex;align-items:center;justify-content:space-between">
+              <span>Telegram Chat ID</span>
+              <a href="https://t.me/userinfobot" target="_blank" style="color:var(--blue);font-size:11px;text-decoration:none">@userinfobot'tan Al ↗</a>
+            </label>
+            <input type="text" id="tg-chat-id" placeholder="Örn: 123456789" style="font-family:'DM Mono',monospace;font-size:12px">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+          <button class="btn btn-green" onclick="telegramSaveSettings()" style="font-size:12px">💾 Ayarları Kaydet</button>
+          <button class="btn btn-primary" onclick="sendTelegramTest()" style="font-size:12px">📱 Telefona Test Mesajı Gönder</button>
+        </div>
+
+        <!-- 3 ADIMDA KURULUM REHBERİ -->
+        <details style="background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--muted2);line-height:1.7">
+          <summary style="font-weight:600;color:var(--text);cursor:pointer">ℹ️ 1 Dakikada Telegram Bot Kurulumu (Nasıl Yapılır?)</summary>
+          <ol style="margin:8px 0 0 16px;padding:0">
+            <li>Telegram'ı açıp <strong>@BotFather</strong>'a git, <code>/newbot</code> yaz. Bir isim ve kullanıcı adı verip verdiği <strong>HTTP API Token</strong>'ı yukarıdaki alana yapıştır.</li>
+            <li>Oluşturduğun bota tıkla ve <strong>/start</strong> de.</li>
+            <li>Telegram arama kutusuna <strong>@userinfobot</strong> yazıp <strong>Başlat</strong>'a bas. Sana verdiği <strong>Id</strong> numarasını Chat ID alanına yapıştır.</li>
+            <li>"Ayarları Kaydet" ve "Telefona Test Mesajı Gönder" butonuna bas. Bitti! 🎉</li>
+          </ol>
+        </details>
       </div>
-      <div style="background:var(--surf2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--acc);margin-bottom:6px">🧪 Test Bildirimi</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Bildirimin gelip gelmediğini kontrol et</div>
-        <button class="btn btn-green" onclick="sendTestPush()" style="font-size:12px;padding:9px 16px">📱 Test Bildirimi Gönder</button>
-      </div>
-      <div class="card-title" style="margin-top:4px">⏰ Otomatik Hatırlatmalar</div>
-      <div class="ni-row">
-        <div><div style="font-size:13px;font-weight:500">Maç günü sabahı</div><div style="font-size:11px;color:var(--muted)">08:00 — "Bugün maçın var!"</div></div>
-        <button id="tog-morning" class="toggle on" onclick="togglePushPref(this,'morning')"></button>
-      </div>
-      <div class="ni-row">
-        <div><div style="font-size:13px;font-weight:500">1 gün öncesi</div><div style="font-size:11px;color:var(--muted)">Akşam 20:00 — yarınki maç hatırlatması</div></div>
-        <button id="tog-day" class="toggle on" onclick="togglePushPref(this,'day')"></button>
-      </div>
-      <div class="ni-row">
-        <div><div style="font-size:13px;font-weight:500">2 saat öncesi</div><div style="font-size:11px;color:var(--muted)">Maçtan 2 saat önce son hatırlatma</div></div>
-        <button id="tog-2h" class="toggle on" onclick="togglePushPref(this,'2h')"></button>
+
+      <!-- KART 2: ZAMANLANMIŞ OTOMATİK KONTROL SAATLERİ -->
+      <div class="card">
+        <div class="card-title">⏰ Günlük Otomatik Kontrol Saatleri</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          Sistem her gün bu saatlerde Google Drive'ı otomatik tarar ve maçın varsa telefonuna bildirir:
+        </div>
+
+        <div class="fg" style="margin-bottom:14px">
+          <label>Kontrol Saatleri (Virgülle ayırarak girin)</label>
+          <input type="text" id="sched-check-hours" value="08:00, 13:00, 20:00" style="font-family:'DM Mono',monospace;font-size:13px;letter-spacing:1px">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Varsayılan: 08:00 (Sabah kontrolü), 13:00 (Öğle kontrolü), 20:00 (Akşam kontrolü)</div>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <div class="ni-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">🏀 Bugün Maçım Varsa Bildir</div>
+              <div style="font-size:11px;color:var(--muted)">Sabah kontrolünde günün tüm maç detaylarını ilet</div>
+            </div>
+            <button id="tog-tg-today" class="toggle on" onclick="toggleTgPref(this,'today')"></button>
+          </div>
+          <div class="ni-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">📅 Yarın Maçım Varsa Bildir</div>
+              <div style="font-size:11px;color:var(--muted)">Akşam kontrolünde (20:00) yarınki maçları hatırlat</div>
+            </div>
+            <button id="tog-tg-tomorrow" class="toggle on" onclick="toggleTgPref(this,'tomorrow')"></button>
+          </div>
+          <div class="ni-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">⏰ Maçtan 2 Saat Önce Hatırlat</div>
+              <div style="font-size:11px;color:var(--muted)">Maça 2 saat kala son durum alarmı gönder</div>
+            </div>
+            <button id="tog-tg-2h" class="toggle on" onclick="toggleTgPref(this,'two_hours')"></button>
+          </div>
+          <div class="ni-row">
+            <div>
+              <div style="font-size:13px;font-weight:500">🆕 Yeni Maç Bulunduğunda Bildir</div>
+              <div style="font-size:11px;color:var(--muted)">Drive taramasında yeni atanan maç tespit edilirse anında uyar</div>
+            </div>
+            <button id="tog-tg-new" class="toggle on" onclick="toggleTgPref(this,'new_matches')"></button>
+          </div>
+        </div>
+
+        <button class="btn btn-green" onclick="saveScheduleSettings()" style="font-size:12px;width:100%;justify-content:center">💾 Kontrol Saatlerini ve Tercihleri Kaydet</button>
       </div>
     </div>
+
+    <!-- SAĞ KOLON: 7/24 BULUT OTOMASYONU & HIZLI GÖNDERİM & PWA -->
     <div style="display:flex;flex-direction:column;gap:16px">
-      <div class="card">
-        <div class="card-title">📅 Yaklaşan Maçlar</div>
-        <div id="notif-q" style="font-size:12px;color:var(--muted2)">Yükleniyor...</div>
+      <!-- KART 3: 7/24 BULUT OTOMASYONU (APPS SCRIPT) -->
+      <div class="card" style="border:1px solid rgba(16,185,129,0.25);background:linear-gradient(180deg, rgba(16,185,129,0.04) 0%, rgba(20,24,30,0.6) 100%)">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">☁️</span> 7/24 Bulut Otomasyonu (PC Kapalıyken)
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          Bilgisayarın veya telefonun kapalı olsa dahi <strong>Google sunucuları</strong> her gün Drive'ı tarayıp Telegram'ına bildirim atabilir.
+        </div>
+        <div style="font-size:11px;color:var(--muted2);margin-bottom:14px;line-height:1.6;background:rgba(0,0,0,0.2);padding:10px 12px;border-radius:10px;border:1px solid var(--border)">
+          1. <strong>script.google.com</strong> adresine git ve "Yeni Proje" aç.<br>
+          2. Projendeki <code>google_apps_script.js</code> kodunu yapıştır.<br>
+          3. <code>kurulumuYap()</code> fonksiyonunu çalıştır.<br>
+          Google sunucuları her sabah 08:00 ve akşam 20:00'de otomatik çalışacaktır.
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="copyAppsScriptCode()" style="font-size:11px;flex:1">📋 Apps Script Kodunu Kopyala</button>
+          <a href="https://script.google.com" target="_blank" class="btn btn-primary btn-sm" style="font-size:11px;text-decoration:none">script.google.com ↗</a>
+        </div>
       </div>
+
+      <!-- KART 4: YAKLAŞAN MAÇLAR & MANUEL BİLDİRİM -->
       <div class="card">
-        <div class="card-title">📤 Hemen Bildirim Gönder</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Yaklaşan maçlarından biri için şimdi bildirim al</div>
+        <div class="card-title">📤 Seçili Maçı Telegram'a Gönder</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Yaklaşan maçlarından birini şimdi doğrudan telefonuna ilet:</div>
         <select id="notif-match-sel" style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-size:12px;margin-bottom:10px;outline:none">
           <option value="">— Maç seç —</option>
         </select>
-        <button class="btn btn-primary" onclick="sendMatchPush()" style="width:100%;justify-content:center;font-size:12px">🔔 Bildirim Al</button>
+        <button class="btn btn-primary" onclick="sendSelectedMatchToTelegram()" style="width:100%;justify-content:center;font-size:12px">✈️ Telegram'a Gönder</button>
       </div>
+
+      <!-- KART 5: YAKLAŞAN MAÇ LİSTESİ -->
+      <div class="card">
+        <div class="card-title">📅 Yaklaşan Maçların</div>
+        <div id="notif-q" style="font-size:12px;color:var(--muted2)">Yükleniyor...</div>
+      </div>
+
+      <!-- KART 6: WEB PUSH & PWA -->
       <div class="card" id="pwa-install-card">
-        <div class="card-title">📲 Ana Ekrana Ekle</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
-          Arka planda bildirim alabilmek için uygulamayı PWA olarak yükle:<br><br>
-          <strong style="color:var(--text)">iPhone:</strong> Safari → Paylaş → Ana Ekrana Ekle<br>
-          <strong style="color:var(--text)">Android:</strong> Chrome → ⋮ → Uygulamayı Yükle
+        <div class="card-title">🔔 Tarayıcı &amp; PWA Bildirimi</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+          Telegram haricinde tarayıcı üzerinden de bildirim almak istersen:
         </div>
-        <button id="btn-pwa-install" class="btn btn-primary" style="font-size:12px;display:none" onclick="pwaTriggerInstall()">⬇️ Yükle</button>
+        <div id="pwa-perm-box" style="border-radius:10px;padding:12px;margin-bottom:12px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:12px;font-weight:600" id="perm-title">Tarayıcı İzni</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px" id="perm-sub">Durum kontrol ediliyor...</div>
+            </div>
+            <button id="btn-req-perm" class="btn btn-primary btn-sm" onclick="requestPushPermission()" style="display:none;font-size:11px">İzin Ver</button>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="sendTestPush()" style="font-size:11px;width:100%;justify-content:center">Tarayıcı Test Bildirimi Gönder</button>
       </div>
     </div>
   </div>
@@ -845,15 +1160,64 @@ const TEAMS = [
   'BAHÇEŞEHİR KOLEJİ','TEŞVİKİYE S.K','ESENLER YAVUZ SELİM S.K.','FMV ERENKÖY IŞIKSPOR'
 ];
 
-const FEES = { bolge:748, okul:320, gelisim:1200, ozel:0 };
+// ─── 2026-2027 SEZONU GÜNCEL ÜCRET TARİFESİ ───────────
+const FEES = {
+  bolge_1: 1205, // Bölge 1. Hakem (Başhakem)
+  bolge_2: 1049, // Bölge 2. Hakem
+  bolge:   1049, // Varsayılan bölge ücreti
+  okul:     440, // Okul maçları
+  ozel:    1700, // Özel Lig & Üniversite
+  gelisim: 1700, // Gelişim Ligi (1.700 TL)
+  master:  1700  // Master League (1.700 TL)
+};
+
+let activeSeason = LS.getItem('rt_active_season') || '2026-2027';
+
+window.setSeason = function(s) {
+  activeSeason = s;
+  LS.setItem('rt_active_season', s);
+  const sel = document.getElementById('season-select');
+  if(sel) sel.value = s;
+  const tag = document.getElementById('side-season-tag');
+  if(tag) {
+    tag.textContent = s === '2026-2027' ? 'Aktif' : s === 'all' ? 'Tümü' : 'Arşiv';
+    tag.className = 'badge ' + (s === '2026-2027' ? 'b-green' : s === 'all' ? 'b-blue' : 'b-yellow');
+  }
+  const badge = document.getElementById('dash-season-badge');
+  if(badge) {
+    badge.textContent = s === 'all' ? 'Tüm Sezonlar' : s + (s === '2025-2026' ? ' (Arşiv)' : ' (Aktif)');
+    badge.className = 'badge ' + (s === '2025-2026' ? 'b-yellow' : s === 'all' ? 'b-blue' : 'b-green');
+  }
+  renderAll();
+  toast(s === 'all' ? 'Tüm sezonlar gösteriliyor' : s + ' sezonu seçildi', 'info');
+};
+
+function getMatchSeason(m) {
+  if (m.season) return m.season;
+  return (m.date || '') < '2026-08-01' ? '2025-2026' : '2026-2027';
+}
+
+function getSeasonMatches() {
+  if (activeSeason === 'all') return matches;
+  return matches.filter(m => getMatchSeason(m) === activeSeason);
+}
 
 function guessFee(m) {
   const cat = guessCat(m);
-  if (cat==='okul') return FEES.okul;
-  if (cat==='bolge') return FEES.bolge;
-  const lig = (m.league||'').toUpperCase();
-  if (lig.includes('GELİŞİM')) return FEES.gelisim;
-  return 0;
+  const role = (m.role || '').toLowerCase();
+  const isBas = role.includes('baş') || role.includes('1');
+
+  if (cat === 'okul') return FEES.okul; // 440 TL
+  if (cat === 'bolge') return isBas ? FEES.bolge_1 : FEES.bolge_2; // 1205 veya 1049 TL
+
+  // Özel Lig & Üniversite: Sadece Gelişim Ligi / Master League 1700 TL, haricinde 0 TL
+  const lig = ((m.league || '') + ' ' + (m.notes || '') + ' ' + (m.home || '')).toUpperCase();
+  if (lig.includes('GELİŞİM') || lig.includes('GELISIM') || lig.includes('MASTER')) {
+    return 1700;
+  }
+  if (cat === 'ozel') return 0;
+
+  return isBas ? FEES.bolge_1 : FEES.bolge_2;
 }
 
 const MONTHS = {Ocak:'01',Şubat:'02',Mart:'03',Nisan:'04',Mayıs:'05',Haziran:'06',Temmuz:'07',Ağustos:'08',Eylül:'09',Ekim:'10',Kasım:'11',Aralık:'12'};
@@ -897,8 +1261,8 @@ function isPast(m) {
   const dt = new Date(m.date + 'T' + (m.time || '23:59'));
   return dt < new Date();
 }
-function getUpcoming() { return matches.filter(m=>!isPast(m)).sort((a,b)=>a.date.localeCompare(b.date)); }
-function getPast()     { return matches.filter(m=>isPast(m)).sort((a,b)=>b.date.localeCompare(a.date)); }
+function getUpcoming() { return getSeasonMatches().filter(m=>!isPast(m)).sort((a,b)=>a.date.localeCompare(b.date)); }
+function getPast()     { return getSeasonMatches().filter(m=>isPast(m)).sort((a,b)=>b.date.localeCompare(a.date)); }
 
 function fmtDate(d) { const dt=new Date(d+'T12:00'); if(isNaN(dt.getTime()))return d||'—'; return dt.toLocaleDateString('tr-TR',{day:'numeric',month:'short',year:'numeric'}); }
 function timeLeft(m) {
@@ -945,7 +1309,7 @@ function guessCat(m) {
   const notes = (m.notes||'').toUpperCase();
   if (notes.includes('ÖZEL LIG')||notes.includes('ÖZEL LİG')||notes.includes('UNIVERSITE')||notes.includes('ÜNİVERSİTE')) return 'ozel';
   if (notes.includes('OKUL')||notes.includes('İLÇE')||notes.includes('ILCE')) return 'okul';
-  if (lig.includes('GELİŞİM')||lig.includes('GELISIM')||lig.includes('BC CUP')||lig.includes('ÜNİVERSİTE')||lig.includes('UNIVERSITE')||loc.includes('ÜNİVERSİTE')||loc.includes('UNIVERSITE')||loc.includes('KAMPÜS')||loc.includes('KAMPUS')) return 'ozel';
+  if (lig.includes('GELİŞİM')||lig.includes('GELISIM')||lig.includes('MASTER')||lig.includes('BC CUP')||lig.includes('ÜNİVERSİTE')||lig.includes('UNIVERSITE')||loc.includes('ÜNİVERSİTE')||loc.includes('UNIVERSITE')||loc.includes('KAMPÜS')||loc.includes('KAMPUS')) return 'ozel';
   if (lig.includes('İLÇE')||lig.includes('ILCE')||lig.includes('OKUL')||lig.includes('3X3')||loc.includes('LİSESİ')||loc.includes('LISESI')||loc.includes('MTAL')||loc.includes('İLKOKUL')||loc.includes('ILKOKUL')||loc.includes('ORTAOKUL')) return 'okul';
   return 'bolge';
 }
@@ -982,7 +1346,7 @@ window.go = function(id) {
 };
 
 window.progTab = function(tab) {
-  ['hafta','okul','ozel','csv'].forEach(t=>{
+  ['hafta','okul','ozel','csv','drive'].forEach(t=>{
     const el=document.getElementById('progtab-'+t);
     if(el) el.style.display = t===tab?'':'none';
     const btn=document.getElementById('ptab-'+t);
@@ -992,6 +1356,7 @@ window.progTab = function(tab) {
   if(tab==='okul')  renderOkul();
   if(tab==='ozel')  renderOzel();
   if(tab==='csv')   renderCsvHistory();
+  if(tab==='drive') renderDriveTab();
 };
 
 window.renderHafta = function() {
@@ -1100,11 +1465,12 @@ window.haftaEkle=async function(i){
   const m=window._hafta[i];if(!m)return;
   const dateStr=parseTarih(m.tarih),rol=myRole(m.h1,m.h2);
   const isFuture=new Date(dateStr+'T'+(m.saat||'23:59'))>=new Date();
+  const f=rol==='Başhakem'?FEES.bolge_1:FEES.bolge_2;
   setSync('syncing');
   try{
-    await addDoc(col,{home:m.ev||'—',away:m.dep||'—',date:dateStr,time:m.saat,league:m.kat||'',location:m.salon,role:rol==='Başhakem'?'Başhakem':'2. Hakem',fee:FEES.bolge,payment:'Bekleniyor',notes:m.grup||'',createdAt:new Date().toISOString(),autoAdded:true});
-    if(isFuture){toast(`📅 Gelecek maçlara eklendi! (₺${FEES.bolge.toLocaleString('tr-TR')})`,'ok');go('upcoming');setTimeout(()=>upcomingTab('bolge'),80);}
-    else{toast(`✅ Geçmiş maçlara eklendi! (₺${FEES.bolge.toLocaleString('tr-TR')})`,'ok');go('past');setTimeout(()=>pastTab('bolge'),80);}
+    await addDoc(col,{home:m.ev||'—',away:m.dep||'—',date:dateStr,time:m.saat,league:m.kat||'',location:m.salon,role:rol==='Başhakem'?'Başhakem':'2. Hakem',fee:f,payment:'Bekleniyor',notes:m.grup||'',season:getMatchSeason({date:dateStr}),createdAt:new Date().toISOString(),autoAdded:true});
+    if(isFuture){toast(`📅 Gelecek maçlara eklendi! (₺${f.toLocaleString('tr-TR')})`,'ok');go('upcoming');setTimeout(()=>upcomingTab('bolge'),80);}
+    else{toast(`✅ Geçmiş maçlara eklendi! (₺${f.toLocaleString('tr-TR')})`,'ok');go('past');setTimeout(()=>pastTab('bolge'),80);}
   }catch(e){setSync('error');toast('Hata: '+e.message,'err');}
 };
 
@@ -1114,7 +1480,7 @@ window.okulEkle=async function(i){
   const isFuture=new Date(dateStr+'T'+(m.saat||'23:59'))>=new Date();
   setSync('syncing');
   try{
-    await addDoc(col,{home:m.org,away:m.grup,date:dateStr,time:m.saat,league:m.org+' — Okul İl/İlçe',location:m.salon,role:rol==='Başhakem'?'Başhakem':'2. Hakem',fee:FEES.okul,payment:'Bekleniyor',notes:'Okul İl ve İlçe',category:'okul',createdAt:new Date().toISOString(),autoAdded:true});
+    await addDoc(col,{home:m.org,away:m.grup,date:dateStr,time:m.saat,league:m.org+' — Okul İl/İlçe',location:m.salon,role:rol==='Başhakem'?'Başhakem':'2. Hakem',fee:FEES.okul,payment:'Bekleniyor',notes:'Okul İl ve İlçe',category:'okul',season:getMatchSeason({date:dateStr}),createdAt:new Date().toISOString(),autoAdded:true});
     if(isFuture){toast(`📅 Gelecek maçlara eklendi! (₺${FEES.okul.toLocaleString('tr-TR')})`,'ok');go('upcoming');setTimeout(()=>upcomingTab('okul'),80);}
     else{toast(`✅ Geçmiş maçlara eklendi! (₺${FEES.okul.toLocaleString('tr-TR')})`,'ok');go('past');setTimeout(()=>pastTab('okul'),80);}
   }catch(e){setSync('error');toast('Hata: '+e.message,'err');}
@@ -1124,13 +1490,14 @@ window.ozelEkle=async function(i){
   const m=window._ozel[i];if(!m)return;
   const dateStr=parseTarih(m.tarih),rol=myRole(m.h1,m.h2);
   const isFuture=new Date(dateStr+'T'+(m.saat||'23:59'))>=new Date();
-  const isGelisim=m.org.toUpperCase().includes('GELİŞİM')||m.org.toUpperCase().includes('GELISIM');
-  const autoFee=isGelisim?FEES.gelisim:0;
+  const orgText = ((m.org||'') + ' ' + (m.kat||'') + ' ' + (m.a||'')).toUpperCase();
+  const is1700 = orgText.includes('GELİŞİM') || orgText.includes('GELISIM') || orgText.includes('MASTER');
+  const autoFee = is1700 ? 1700 : 0;
   setSync('syncing');
   try{
-    await addDoc(col,{home:m.a||m.org,away:m.b||'—',date:dateStr,time:m.saat,league:m.org,location:m.salon,role:rol==='Başhakem'?'Başhakem':'2. Hakem',fee:autoFee,payment:'Bekleniyor',notes:'Özel Lig & Üniversite',category:'ozel',createdAt:new Date().toISOString(),autoAdded:true});
-    if(isFuture){toast(`📅 Gelecek maçlara eklendi!`,'ok');go('upcoming');setTimeout(()=>upcomingTab('ozel'),80);}
-    else{toast(`✅ Geçmiş maçlara eklendi!`,'ok');go('past');setTimeout(()=>pastTab('ozel'),80);}
+    await addDoc(col,{home:m.a||m.org,away:m.b||'—',date:dateStr,time:m.saat,league:m.org,location:m.salon,role:rol==='Başhakem'?'Başhakem':'2. Hakem',fee:autoFee,payment:'Bekleniyor',notes:'Özel Lig & Üniversite',category:'ozel',season:getMatchSeason({date:dateStr}),createdAt:new Date().toISOString(),autoAdded:true});
+    if(isFuture){toast(`📅 Gelecek maçlara eklendi! (₺${autoFee.toLocaleString('tr-TR')})`,'ok');go('upcoming');setTimeout(()=>upcomingTab('ozel'),80);}
+    else{toast(`✅ Geçmiş maçlara eklendi! (₺${autoFee.toLocaleString('tr-TR')})`,'ok');go('past');setTimeout(()=>pastTab('ozel'),80);}
   }catch(e){setSync('error');toast('Hata: '+e.message,'err');}
 };
 
@@ -1212,7 +1579,7 @@ window.saveMatch=async function(){
   const home=document.getElementById('f-home').value.trim(),away=document.getElementById('f-away').value.trim(),date=document.getElementById('f-date').value,time=document.getElementById('f-time').value,league=document.getElementById('f-league').value,location=document.getElementById('f-loc').value.trim(),role=document.getElementById('f-role').value,fee=parseFloat(document.getElementById('f-fee').value)||0,payment=document.getElementById('f-payment').value,notes=document.getElementById('f-notes').value.trim();
   if(!home||!away||!date){toast('Takım adları ve tarih zorunlu','err');return;}
   setSync('syncing');
-  try{await addDoc(col,{home,away,date,time,league,location,role,fee,payment,notes,createdAt:new Date().toISOString()});clearForm();toast('✓ Maç kaydedildi!','ok');go('dashboard');}catch(e){setSync('error');toast('Hata: '+e.message,'err');}
+  try{await addDoc(col,{home,away,date,time,league,location,role,fee,payment,notes,season:getMatchSeason({date}),createdAt:new Date().toISOString()});clearForm();toast('✓ Maç kaydedildi!','ok');go('dashboard');}catch(e){setSync('error');toast('Hata: '+e.message,'err');}
 };
 
 window.markPaid=async function(id){
@@ -1236,7 +1603,7 @@ window.openEdit=function(id){
   document.getElementById('e-notes').value=m.notes||'';
   document.getElementById('edit-modal').classList.add('open');
   const cat=guessCat(m),lig=(m.league||'').toUpperCase();
-  const label=cat==='okul'?'🏫 Okul İl/İlçe → ₺320':cat==='bolge'?'📋 Bölge Maçı → ₺748':lig.includes('GELİŞİM')?'🏆 Gelişim Ligi → ₺1.200':'🏆 Özel Lig → manuel';
+  const label=cat==='okul'?'🏫 Okul → ₺440':cat==='bolge'?'📋 Bölge (1.Hakem: ₺1.205 / 2.Hakem: ₺1.049)':(lig.includes('GELİŞİM')||lig.includes('GELISIM'))?'🏆 Gelişim Ligi → ₺1.700':lig.includes('MASTER')?'🏆 Master League → ₺1.700':'🏆 Özel Lig → ₺1.700';
   let hint=document.getElementById('fee-hint');
   if(!hint){hint=document.createElement('div');hint.id='fee-hint';hint.style.cssText='font-size:11px;color:var(--acc);margin-top:4px;';document.getElementById('e-fee').parentNode.appendChild(hint);}
   hint.textContent=(m.fee||0)?'':'↑ Otomatik: '+label;
@@ -1263,7 +1630,26 @@ window.clearForm=function(){
   document.getElementById('f-role').value='Başhakem';
   document.getElementById('f-payment').value='Bekleniyor';
 };
-window.onLeague=function(){document.getElementById('f-home').value='';document.getElementById('f-away').value='';};
+window.onLeague=function(){
+  document.getElementById('f-home').value='';
+  document.getElementById('f-away').value='';
+  const lig=(document.getElementById('f-league')?.value||'').toUpperCase();
+  const role=(document.getElementById('f-role')?.value||'').toLowerCase();
+  const isBas=role.includes('baş')||role.includes('1');
+  const feeInp=document.getElementById('f-fee');
+  if(!feeInp)return;
+  if(lig.includes('OKUL')||lig.includes('İLÇE')||lig.includes('ILCE')){
+    feeInp.value=FEES.okul;
+  }else if(lig.includes('ÖZEL')||lig.includes('ÜNİVERSİTE')||lig.includes('UNIV')||lig.includes('BC CUP')){
+    feeInp.value=FEES.ozel;
+  }else if(lig.includes('GELİŞİM')||lig.includes('GELISIM')){
+    feeInp.value=FEES.gelisim;
+  }else if(lig.includes('MASTER')){
+    feeInp.value=FEES.master;
+  }else if(lig.startsWith('U')||lig.includes('ERKEKLER')||lig.includes('KIZLAR')){
+    feeInp.value=isBas?FEES.bolge_1:FEES.bolge_2;
+  }
+};
 
 window.suggest=function(inp,list){
   const q=(document.getElementById(inp).value||'').trim().toUpperCase();
@@ -1296,6 +1682,310 @@ function sendPush(title,body,tag){if(Notification.permission!=='granted')return;
 window.sendTestPush=function(){if(Notification.permission!=='granted'){requestPushPermission().then(()=>{if(Notification.permission==='granted')sendPush('🏀 RefTrack Test','Bildirimler çalışıyor!','test');});return;}sendPush('🏀 RefTrack Test','Bildirimler çalışıyor!','test');toast('✅ Test bildirimi gönderildi','ok');};
 window.sendMatchPush=function(){const sel=document.getElementById('notif-match-sel');if(!sel||!sel.value){toast('⚠️ Maç seç','err');return;}const m=getUpcoming()[parseInt(sel.value)];if(!m)return;sendPush(`🏀 ${m.home} — ${m.away}`,`📅 ${fmtDate(m.date)} ${m.time||''}\n📍 ${m.location||'—'}\n👤 ${m.role}`,'match-'+m.id);toast('🔔 Bildirim gönderildi','ok');};
 
+// ─── TELEGRAM BOT & SAATLİ OTOMASYON MOTORU ───────────────────
+let tgPrefs = JSON.parse(LS.getItem('rt_tg_prefs') || '{"today":true,"tomorrow":true,"two_hours":true,"new_matches":true}');
+
+window.telegramSaveSettings = function() {
+  const token = (document.getElementById('tg-token')?.value || '').trim();
+  const chatId = (document.getElementById('tg-chat-id')?.value || '').trim();
+  if(!token || !chatId) {
+    toast('⚠️ Lütfen hem Bot Token hem de Chat ID girin.', 'err');
+    return;
+  }
+  LS.setItem('rt_tg_token', token);
+  LS.setItem('rt_tg_chat_id', chatId);
+  updateTelegramUI();
+  toast('✈️ Telegram ayarları kaydedildi!', 'ok');
+};
+
+window.saveScheduleSettings = function() {
+  const hours = (document.getElementById('sched-check-hours')?.value || '08:00, 13:00, 20:00').trim();
+  LS.setItem('rt_check_hours', hours);
+  LS.setItem('rt_tg_prefs', JSON.stringify(tgPrefs));
+  toast('⏰ Kontrol saatleri ve tercihler kaydedildi!', 'ok');
+};
+
+window.toggleTgPref = function(btn, key) {
+  btn.classList.toggle('on');
+  tgPrefs[key] = btn.classList.contains('on');
+  LS.setItem('rt_tg_prefs', JSON.stringify(tgPrefs));
+};
+
+function updateTelegramUI() {
+  const token = LS.getItem('rt_tg_token') || '';
+  const chatId = LS.getItem('rt_tg_chat_id') || '';
+  const tokenInp = document.getElementById('tg-token');
+  const chatInp = document.getElementById('tg-chat-id');
+  const badge = document.getElementById('tg-status-badge');
+  const hoursInp = document.getElementById('sched-check-hours');
+
+  if(tokenInp && !tokenInp.value) tokenInp.value = token;
+  if(chatInp && !chatInp.value) chatInp.value = chatId;
+  if(hoursInp) hoursInp.value = LS.getItem('rt_check_hours') || '08:00, 13:00, 20:00';
+
+  if(badge) {
+    if(token && chatId) {
+      badge.textContent = '✓ Bağlandı';
+      badge.className = 'badge b-green';
+    } else {
+      badge.textContent = 'Ayar Bekleniyor';
+      badge.className = 'badge b-yellow';
+    }
+  }
+
+  ['today','tomorrow','two_hours','new_matches'].forEach(k => {
+    const btn = document.getElementById('tog-tg-' + (k === 'two_hours' ? '2h' : k === 'new_matches' ? 'new' : k));
+    if(btn) btn.classList.toggle('on', tgPrefs[k] !== false);
+  });
+}
+
+window.sendTelegram = async function(htmlText, customToken, customChatId) {
+  const token = (customToken || LS.getItem('rt_tg_token') || '').trim();
+  const chatId = (customChatId || LS.getItem('rt_tg_chat_id') || '').trim();
+  if(!token || !chatId) {
+    console.warn('Telegram token veya chatId eksik');
+    return { ok: false, error: 'Token veya Chat ID eksik' };
+  }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: htmlText,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      })
+    });
+    return await res.json();
+  } catch(e) {
+    console.error('Telegram send error:', e);
+    return { ok: false, error: e.message };
+  }
+};
+
+window.sendTelegramTest = async function() {
+  const token = (document.getElementById('tg-token')?.value || LS.getItem('rt_tg_token') || '').trim();
+  const chatId = (document.getElementById('tg-chat-id')?.value || LS.getItem('rt_tg_chat_id') || '').trim();
+  if(!token || !chatId) {
+    toast('⚠️ Lütfen Bot Token ve Chat ID alanlarını doldurun.', 'err');
+    return;
+  }
+  toast('✈️ Telegram mesajı gönderiliyor...', 'info');
+  const nowStr = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'});
+  const msg = `🏀 <b>RefTrack Telegram Bildirimi Aktif!</b>\n\n` +
+              `Selam <b>Şemsettin Kemal Atak</b>! 👋\n` +
+              `RefTrack bildirim botun başarıyla bağlandı. (${nowStr})\n\n` +
+              `Bundan sonra maç atamaların ve yaklaşan maçların doğrudan buraya iletilecek.\n` +
+              `<i>İyi maçlar dileriz! 🏀🏁</i>`;
+  const res = await sendTelegram(msg, token, chatId);
+  if(res && res.ok) {
+    LS.setItem('rt_tg_token', token);
+    LS.setItem('rt_tg_chat_id', chatId);
+    updateTelegramUI();
+    toast('✅ Telegram testi başarılı! Telefonunu kontrol et.', 'ok');
+  } else {
+    const errText = res?.description || res?.error || 'Bilinmeyen hata';
+    toast('❌ Telegram Hatası: ' + errText, 'err');
+    alert('Telegram Gönderim Hatası:\n' + errText + '\n\nİpucu: Bota Telegram üzerinden önce /start mesajı gönderdiğinizden emin olun.');
+  }
+};
+
+function formatMatchTg(m, headline) {
+  const rol = m.role || 'Hakem';
+  const feeStr = m.fee ? `💰 Ücret: <b>₺${Number(m.fee).toLocaleString('tr-TR')}</b> (${m.payment || 'Bekleniyor'})` : '';
+  const ligStr = m.league ? `🏆 Lig: <b>${m.league}</b>` : '';
+  const salon = m.location || 'Belirtilmedi';
+  return `🏀 <b>${headline}</b>\n\n` +
+         `⚔️ <b>${m.home} — ${m.away}</b>\n` +
+         `📅 Tarih: <b>${fmtDate(m.date)}</b>\n` +
+         `⏰ Saat: <b>${m.time || '—'}</b>\n` +
+         `📍 Salon: <b>${salon}</b>\n` +
+         (ligStr ? `${ligStr}\n` : '') +
+         `👤 Görev: <b>${rol}</b>\n` +
+         (feeStr ? `${feeStr}\n` : '') +
+         `\n<i>RefTrack Otomasyon</i>`;
+}
+
+window.sendSelectedMatchToTelegram = async function() {
+  const sel = document.getElementById('notif-match-sel');
+  if(!sel || !sel.value) { toast('⚠️ Lütfen bir maç seçin', 'err'); return; }
+  const m = getUpcoming()[parseInt(sel.value)];
+  if(!m) return;
+  const token = LS.getItem('rt_tg_token');
+  const chatId = LS.getItem('rt_tg_chat_id');
+  if(!token || !chatId) {
+    toast('⚠️ Önce yukarıdan Telegram Bot Token ve Chat ID kaydedin.', 'err');
+    return;
+  }
+  toast('✈️ Telegram mesajı gönderiliyor...', 'info');
+  const text = formatMatchTg(m, 'MAÇ DETAYI 🏀');
+  const res = await sendTelegram(text);
+  if(res && res.ok) toast('✅ Maç Telegram\'a gönderildi!', 'ok');
+  else toast('❌ Gönderilemedi: ' + (res?.description || 'Hata'), 'err');
+};
+
+window.copyAppsScriptCode = function() {
+  const token = LS.getItem('rt_tg_token') || 'BURAYA_BOT_TOKEN_GIRIN';
+  const chatId = LS.getItem('rt_tg_chat_id') || 'BURAYA_CHAT_ID_GIRIN';
+  const folderId = LS.getItem('rt_drive_folder_id') || '0ByPao_qBUjN-YXJZSG5Fancybmc';
+  
+  const code = `/**
+ * RefTrack - 7/24 Google Drive & Telegram Otomasyonu
+ * (script.google.com üzerinde çalışır)
+ */
+const TELEGRAM_BOT_TOKEN = "${token}";
+const TELEGRAM_CHAT_ID   = "${chatId}";
+const DRIVE_FOLDER_ID    = "${folderId}";
+const REFEREE_NAME       = "KEMAL ATAK";
+
+function gunlukMacKontrolu() {
+  const folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
+  const files = folder.getFiles();
+  let matchesFound = [];
+  const today = Utilities.formatDate(new Date(), "GMT+3", "yyyy-MM-dd");
+  const tomorrow = Utilities.formatDate(new Date(Date.now() + 86400000), "GMT+3", "yyyy-MM-dd");
+
+  while (files.hasNext()) {
+    const file = files.next();
+    const fileName = file.getName().toLowerCase();
+    if (!fileName.includes("hafta") && !fileName.includes("okul") && !fileName.includes("özel") && !fileName.includes("ozel") && !fileName.includes("üni") && !fileName.includes("uni")) continue;
+    try {
+      if (file.getMimeType() === MimeType.GOOGLE_SHEETS) {
+        const ss = SpreadsheetApp.openById(file.getId());
+        for (const sheet of ss.getSheets()) {
+          const data = sheet.getDataRange().getValues();
+          for (let r = 0; r < data.length; r++) {
+            const rowStr = data[r].join(" ").toUpperCase();
+            if (rowStr.includes(REFEREE_NAME)) {
+              matchesFound.push({ file: file.getName(), raw: data[r].filter(Boolean).slice(0,8).join(" | ") });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+  if (matchesFound.length > 0) {
+    const text = "🏀 <b>RefTrack Bulut Kontrolü</b>\\n\\n" + matchesFound.length + " maç tespit edildi!\\n\\n" + matchesFound.map(m=>"• " + m.file + "\\n  " + m.raw).join("\\n\\n");
+    UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage", {
+      method: "post", contentType: "application/json",
+      payload: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: text, parse_mode: "HTML" })
+    });
+  }
+}
+
+function kurulumuYap() {
+  const triggers = ScriptApp.getProjectTriggers();
+  for (const t of triggers) ScriptApp.deleteTrigger(t);
+  ScriptApp.newTrigger("gunlukMacKontrolu").timeBased().atHour(8).everyDays(1).create();
+  ScriptApp.newTrigger("gunlukMacKontrolu").timeBased().atHour(20).everyDays(1).create();
+}`;
+
+  navigator.clipboard.writeText(code).then(() => {
+    toast('📋 Apps Script kodu panoya kopyalandı!', 'ok');
+  }).catch(() => {
+    toast('Kopyalama başarısız, google_apps_script.js dosyasını açabilirsiniz.', 'err');
+  });
+};
+
+// ─── MASTER GÜNLÜK ZAMANLAYICI & BİLDİRİM MOTORU ─────────────
+let _lastTriggeredSlot = '';
+
+async function checkDailyScheduleAndNotify() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const currentTime = `${hh}:${mm}`;
+  const todayStr = now.toISOString().split('T')[0];
+
+  const rawHours = LS.getItem('rt_check_hours') || '08:00, 13:00, 20:00';
+  const hoursList = rawHours.split(',').map(s => s.trim()).filter(Boolean);
+
+  const slotKey = `${todayStr}_${currentTime}`;
+
+  // Zamanlanmış saat kontrolü
+  if (hoursList.includes(currentTime) && _lastTriggeredSlot !== slotKey) {
+    _lastTriggeredSlot = slotKey;
+    console.log(`⏰ RefTrack Otomatik Kontrol Saati Tetiklendi: ${currentTime}`);
+
+    // 1. Arka planda Drive taraması
+    if (typeof driveAutoSync === 'function' && LS.getItem('rt_drive_api_key')) {
+      try {
+        console.log('⏰ Otomatik Drive taraması başlatılıyor...');
+        await driveAutoSync();
+        const totalPending = (_drivePendingBolge?.length || 0) + (_drivePendingOkul?.length || 0) + (_drivePendingOzel?.length || 0);
+        if (totalPending > 0 && tgPrefs.new_matches !== false) {
+          const newMsg = `🆕 <b>Drive'da ${totalPending} Yeni Maç Bulundu!</b>\n\n` +
+            `Şemsettin Kemal Atak adına atanmış yeni maçlar tespit edildi. Panelden veya otomatik olarak inceleyebilirsiniz.`;
+          await sendTelegram(newMsg);
+        }
+      } catch(e) { console.warn('Scheduled drive sync error:', e); }
+    }
+
+    // 2. Bugün maç kontrolü
+    if (tgPrefs.today !== false) {
+      const up = getUpcoming();
+      const todayMatches = up.filter(m => m.date === todayStr);
+      if (todayMatches.length > 0) {
+        for (const m of todayMatches) {
+          const sentKey = `tg_today_${todayStr}_${m.id || m.home}`;
+          const sentMap = JSON.parse(LS.getItem('rt_tg_sent') || '{}');
+          if (!sentMap[sentKey]) {
+            const text = formatMatchTg(m, 'BUGÜN MAÇIN VAR! 🏀');
+            await sendTelegram(text);
+            sentMap[sentKey] = true;
+            LS.setItem('rt_tg_sent', JSON.stringify(sentMap));
+          }
+        }
+      }
+    }
+
+    // 3. Yarın maç kontrolü (Akşam kontrolü için)
+    if (tgPrefs.tomorrow !== false && now.getHours() >= 18) {
+      const tomorrow = new Date(now.getTime() + 86400000);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      const tomorrowMatches = getUpcoming().filter(m => m.date === tomorrowStr);
+      if (tomorrowMatches.length > 0) {
+        for (const m of tomorrowMatches) {
+          const sentKey = `tg_tom_${tomorrowStr}_${m.id || m.home}`;
+          const sentMap = JSON.parse(LS.getItem('rt_tg_sent') || '{}');
+          if (!sentMap[sentKey]) {
+            const text = formatMatchTg(m, 'YARIN MAÇIN VAR! 📅');
+            await sendTelegram(text);
+            sentMap[sentKey] = true;
+            LS.setItem('rt_tg_sent', JSON.stringify(sentMap));
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Maçtan 2 saat önce hatırlatma (Her 30 saniyede bir kontrol edilir)
+  if (tgPrefs.two_hours !== false) {
+    const up = getUpcoming();
+    for (const m of up) {
+      if (m.date !== todayStr || !m.time) continue;
+      const matchTime = new Date(`${m.date}T${m.time}`);
+      const diffMs = matchTime - now;
+      const diffMin = Math.floor(diffMs / 60000);
+      if (diffMin > 110 && diffMin <= 125) { // ~2 saat kala (110 - 125 dk)
+        const sentKey = `tg_2h_${m.id || (m.date + '_' + m.time)}`;
+        const sentMap = JSON.parse(LS.getItem('rt_tg_sent') || '{}');
+        if (!sentMap[sentKey]) {
+          const text = formatMatchTg(m, '⏰ MAÇINA 2 SAAT KALDI!');
+          await sendTelegram(text);
+          sentMap[sentKey] = true;
+          LS.setItem('rt_tg_sent', JSON.stringify(sentMap));
+        }
+      }
+    }
+  }
+
+  // Tarayıcı push bildirimlerini de kontrol et
+  checkAutoNotifs();
+}
+setInterval(checkDailyScheduleAndNotify, 30000); // 30 saniyede bir kontrol
+
 function checkAutoNotifs(){
   if(Notification.permission!=='granted')return;
   const now=new Date(),upcoming=getUpcoming();
@@ -1309,41 +1999,50 @@ function checkAutoNotifs(){
   });
   if(changed)savePushSettings();
 }
-setInterval(checkAutoNotifs,60000);
 
 function renderAll(){
   window._renderAll=renderAll;
   renderStats();renderDash();renderUpcomingList();renderPastList();renderFinance();renderNotif();
-  checkAutoNotifs();
+  checkDailyScheduleAndNotify();
 }
 
 function renderStats(){
   const now=new Date(),past=getPast(),upcoming=getUpcoming();
+  const sm=getSeasonMatches();
   const thisMonth=past.filter(m=>{const d=new Date(m.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
-  const earn=thisMonth.reduce((s,m)=>s+m.fee,0),unpaid=matches.filter(m=>m.payment==='Bekleniyor').reduce((s,m)=>s+m.fee,0);
+  const earn=thisMonth.reduce((s,m)=>s+(m.fee||0),0);
+  const unpaid=sm.filter(m=>m.payment==='Bekleniyor').reduce((s,m)=>s+(m.fee||0),0);
 
-  // CSV kaynaklarındaki maçları da "Bu Ay Maç" ve "Gelecek Maçlar" sayılarına dahil et
+  // CSV program verilerini sadece seçili sezona uygunsa say
   const isMine2=h=>(h.h1||'').toUpperCase().includes('KEMAL ATAK')||(h.h2||'').toUpperCase().includes('KEMAL ATAK');
-  const existKeys=new Set(matches.map(m=>m.date+'|'+(m.time||'')+'|'+(m.home||'')+'|'+(m.away||'')));
-  const existLT=new Set(matches.map(m=>m.date+'|'+(m.time||'')+'|'+(m.location||'')));
+  const isSeasonMatch = h => {
+    const d = parseTarih(h.tarih);
+    if (activeSeason === '2025-2026') return d < '2026-08-01';
+    if (activeSeason === '2026-2027') return d >= '2026-08-01';
+    return true;
+  };
+
+  const existKeys=new Set(sm.map(m=>m.date+'|'+(m.time||'')+'|'+(m.home||'')+'|'+(m.away||'')));
+  const existLT=new Set(sm.map(m=>m.date+'|'+(m.time||'')+'|'+(m.location||'')));
   let csvMonthCount=0,csvUpcoming=0;
-  for(const[wk,arr]of Object.entries(HAFTA)){for(const m of arr){if(!isMine2(m))continue;const d=parseTarih(m.tarih);const dObj=new Date(d+'T'+(m.saat||'23:59'));const k=d+'|'+(m.saat||'')+'|'+(m.ev||'')+'|'+(m.dep||'');const lt=d+'|'+(m.saat||'')+'|'+(m.salon||'');if(existKeys.has(k)||existLT.has(lt))continue;if(dObj<now){if(dObj.getMonth()===now.getMonth()&&dObj.getFullYear()===now.getFullYear())csvMonthCount++;}else{csvUpcoming++;}}}
-  for(const src of['current','arsiv']){for(const m of OKUL[src]){if(!isMine2(m))continue;const d=parseTarih(m.tarih);const dObj=new Date(d+'T'+(m.saat||'23:59'));const lt=d+'|'+(m.saat||'')+'|'+(m.salon||'');if(existLT.has(lt))continue;if(dObj<now){if(dObj.getMonth()===now.getMonth()&&dObj.getFullYear()===now.getFullYear())csvMonthCount++;}else{csvUpcoming++;}}}
-  for(const m of OZEL){if(!isMine2(m))continue;const d=parseTarih(m.tarih);const dObj=new Date(d+'T'+(m.saat||'23:59'));const lt=d+'|'+(m.saat||'')+'|'+(m.salon||'');if(existLT.has(lt))continue;if(dObj<now){if(dObj.getMonth()===now.getMonth()&&dObj.getFullYear()===now.getFullYear())csvMonthCount++;}else{csvUpcoming++;}}
+  for(const[wk,arr]of Object.entries(HAFTA)){for(const m of arr){if(!isMine2(m)||!isSeasonMatch(m))continue;const d=parseTarih(m.tarih);const dObj=new Date(d+'T'+(m.saat||'23:59'));const k=d+'|'+(m.saat||'')+'|'+(m.ev||'')+'|'+(m.dep||'');const lt=d+'|'+(m.saat||'')+'|'+(m.salon||'');if(existKeys.has(k)||existLT.has(lt))continue;if(dObj<now){if(dObj.getMonth()===now.getMonth()&&dObj.getFullYear()===now.getFullYear())csvMonthCount++;}else{csvUpcoming++;}}}
+  for(const src of['current','arsiv']){for(const m of OKUL[src]){if(!isMine2(m)||!isSeasonMatch(m))continue;const d=parseTarih(m.tarih);const dObj=new Date(d+'T'+(m.saat||'23:59'));const lt=d+'|'+(m.saat||'')+'|'+(m.salon||'');if(existLT.has(lt))continue;if(dObj<now){if(dObj.getMonth()===now.getMonth()&&dObj.getFullYear()===now.getFullYear())csvMonthCount++;}else{csvUpcoming++;}}}
+  for(const m of OZEL){if(!isMine2(m)||!isSeasonMatch(m))continue;const d=parseTarih(m.tarih);const dObj=new Date(d+'T'+(m.saat||'23:59'));const lt=d+'|'+(m.saat||'')+'|'+(m.salon||'');if(existLT.has(lt))continue;if(dObj<now){if(dObj.getMonth()===now.getMonth()&&dObj.getFullYear()===now.getFullYear())csvMonthCount++;}else{csvUpcoming++;}}
 
   document.getElementById('s-month').textContent=thisMonth.length+csvMonthCount;
   document.getElementById('s-upcoming').textContent=upcoming.length+csvUpcoming;
   document.getElementById('s-earn').textContent='₺'+earn.toLocaleString('tr-TR');
   document.getElementById('s-unpaid').textContent='₺'+unpaid.toLocaleString('tr-TR');
+
   const isMine=h=>(h.h1||'').toUpperCase().includes('KEMAL ATAK')||(h.h2||'').toUpperCase().includes('KEMAL ATAK');
-  const bolgeMine=Object.values(HAFTA).flat().filter(isMine);
+  const bolgeMine=Object.values(HAFTA).flat().filter(isMine).filter(isSeasonMatch);
   document.getElementById('cc-bolge').textContent=bolgeMine.length;
-  document.getElementById('cc-bolge-d').innerHTML=Object.entries(HAFTA).map(([wk,arr])=>{const n=arr.filter(isMine).length;return n>0?`<span class="cc-chip" style="color:var(--acc)">${wk}. Hafta: ${n}</span>`:'';}).join('');
-  const okulMine=[...OKUL.current,...OKUL.arsiv].filter(isMine),okulOrgs={};
+  document.getElementById('cc-bolge-d').innerHTML=Object.entries(HAFTA).map(([wk,arr])=>{const n=arr.filter(isMine).filter(isSeasonMatch).length;return n>0?`<span class="cc-chip" style="color:var(--acc)">${wk}. Hafta: ${n}</span>`:'';}).join('');
+  const okulMine=[...OKUL.current,...OKUL.arsiv].filter(isMine).filter(isSeasonMatch),okulOrgs={};
   okulMine.forEach(h=>okulOrgs[h.org]=(okulOrgs[h.org]||0)+1);
   document.getElementById('cc-okul').textContent=okulMine.length;
   document.getElementById('cc-okul-d').innerHTML=Object.entries(okulOrgs).map(([o,n])=>`<span class="cc-chip" style="color:var(--green)">${o}: ${n}</span>`).join('');
-  const ozelMine=OZEL.filter(isMine);
+  const ozelMine=OZEL.filter(isMine).filter(isSeasonMatch);
   document.getElementById('cc-ozel').textContent=ozelMine.length;
   document.getElementById('cc-ozel-d').innerHTML=ozelMine.map(h=>`<span class="cc-chip" style="color:var(--blue)">${h.tarih.split(' ').slice(0,3).join(' ')} · ${h.org}</span>`).join('');
 }
@@ -1395,20 +2094,22 @@ function renderPastList(){
 }
 
 function renderFinance(){
-  const total=matches.reduce((s,m)=>s+(m.fee||0),0),paid=matches.filter(m=>m.payment==='Ödendi').reduce((s,m)=>s+(m.fee||0),0),pend=matches.filter(m=>m.payment==='Bekleniyor').reduce((s,m)=>s+(m.fee||0),0),now=new Date(),month=matches.filter(m=>{const d=new Date(m.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).reduce((s,m)=>s+(m.fee||0),0);
+  const sm=getSeasonMatches();
+  const total=sm.reduce((s,m)=>s+(m.fee||0),0),paid=sm.filter(m=>m.payment==='Ödendi').reduce((s,m)=>s+(m.fee||0),0),pend=sm.filter(m=>m.payment==='Bekleniyor').reduce((s,m)=>s+(m.fee||0),0),now=new Date(),month=sm.filter(m=>{const d=new Date(m.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).reduce((s,m)=>s+(m.fee||0),0);
   document.getElementById('f-total').textContent='₺'+total.toLocaleString('tr-TR');
   document.getElementById('f-paid').textContent='₺'+paid.toLocaleString('tr-TR');
   document.getElementById('f-pend').textContent='₺'+pend.toLocaleString('tr-TR');
   document.getElementById('f-month').textContent='₺'+month.toLocaleString('tr-TR');
-  const byMonth={};matches.forEach(m=>{const d=new Date(m.date),k=d.toLocaleDateString('tr-TR',{month:'short',year:'2-digit'});byMonth[k]=(byMonth[k]||0)+(m.fee||0);});
+  const byMonth={};sm.forEach(m=>{const d=new Date(m.date),k=d.toLocaleDateString('tr-TR',{month:'short',year:'2-digit'});byMonth[k]=(byMonth[k]||0)+(m.fee||0);});
   const entries=Object.entries(byMonth).slice(-6),mx=Math.max(...entries.map(e=>e[1]),1);
   document.getElementById('monthly-chart').innerHTML=entries.length?entries.map(([mo,v])=>`<div class="bar-row"><div class="bar-label">${mo}</div><div class="bar-track"><div class="bar-fill" style="width:${(v/mx)*100}%"></div></div><div class="bar-val">₺${v.toLocaleString('tr-TR')}</div></div>`).join(''):'<div class="empty"><div class="empty-ic">📊</div><div class="empty-tx">Veri yok</div></div>';
-  const pendM=matches.filter(m=>m.payment==='Bekleniyor');
+  const pendM=sm.filter(m=>m.payment==='Bekleniyor');
   document.getElementById('pend-count').textContent=pendM.length;
   document.getElementById('pend-list').innerHTML=pendM.length?pendM.map(m=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surf2);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)"><div><div style="font-size:12px;font-weight:500">${m.home} — ${m.away}</div><div style="font-size:10px;color:var(--muted)">${fmtDate(m.date)}</div></div><div style="display:flex;align-items:center;gap:9px"><strong style="color:var(--acc)">₺${(m.fee||0).toLocaleString('tr-TR')}</strong><button class="btn btn-green btn-sm" style="font-size:10px" onclick="markPaid('${m.id}')">Ödendi</button></div></div>`).join(''):'<div class="empty" style="padding:24px"><div class="empty-ic">✅</div><div class="empty-tx">Bekleyen ödeme yok</div></div>';
 }
 
 function renderNotif(){
+  updateTelegramUI();
   if(typeof Notification!=='undefined')updatePermUI();
   ['morning','day','2h'].forEach(k=>{const btn=document.getElementById('tog-'+k);if(!btn)return;btn.classList.toggle('on',settings.pushNotifs?.[k]!==false);});
   const up=getUpcoming().slice(0,5),c=document.getElementById('notif-q');
@@ -1551,6 +2252,484 @@ window.handleCsv=function(event,cat){
   event.target.value='';
 };
 
+async function fetchWithCorsProxy(targetUrl) {
+  // Try corsproxy.io first
+  try {
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(proxyUrl);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().length > 0) return text;
+    }
+  } catch (e) {
+    console.warn("corsproxy.io failed, trying allorigins fallback...", e);
+  }
+
+  // Try allorigins.win fallback
+  try {
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(proxyUrl);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().length > 0) return text;
+    }
+  } catch (e) {
+    console.error("allorigins fallback failed as well", e);
+  }
+
+  // Last resort: direct fetch
+  const res = await fetch(targetUrl);
+  if (res.ok) return await res.text();
+  throw new Error("Tabloya erişilemedi. Lütfen bağlantının herkesin erişimine açık olduğundan emin olun.");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRIVE OTOMASYON SİSTEMİ — 2026-27 Sezonu
+// ═══════════════════════════════════════════════════════════════════
+
+const DRIVE_DEFAULT_FOLDER = '0ByPao_qBUjN-YXJZSG5Fancybmc';
+const DRIVE_RESOURCE_KEY   = '0-MKTgAd4XnpTp7S5flJBKuA';
+
+// Bulunan maçları geçici olarak tutan global depo
+let _drivePendingBolge = [];
+let _drivePendingOkul  = [];
+let _drivePendingOzel  = [];
+
+window.renderDriveTab = function() {
+  const apiKey  = LS.getItem('rt_drive_api_key')   || '';
+  const folder  = LS.getItem('rt_drive_folder_id') || DRIVE_DEFAULT_FOLDER;
+  const autoLoad= LS.getItem('rt_drive_auto_on_load') === '1';
+  const inp = document.getElementById('drive-api-key');
+  const fld = document.getElementById('drive-folder-id');
+  const chk = document.getElementById('drive-auto-on-load');
+  if(inp && !inp.value) inp.value = apiKey;
+  if(fld) fld.value = folder;
+  if(chk) chk.checked = autoLoad;
+};
+
+window.driveSaveSettings = function() {
+  const apiKey = (document.getElementById('drive-api-key')?.value||'').trim();
+  const folder = (document.getElementById('drive-folder-id')?.value||'').trim() || DRIVE_DEFAULT_FOLDER;
+  const autoLoad = document.getElementById('drive-auto-on-load')?.checked;
+  LS.setItem('rt_drive_api_key', apiKey);
+  LS.setItem('rt_drive_folder_id', folder);
+  LS.setItem('rt_drive_auto_on_load', autoLoad ? '1' : '0');
+  toast('Drive ayarları kaydedildi ✓', 'ok');
+};
+
+// Dosya adından kategori tespiti
+// Sadece 3 kategori otomatik alınır: xx.HAFTA (Bölge), OKUL İL VE İLÇE (Okul), ÖZEL LİG & ÜNİVERSİTE (Özel)
+// Diğer dosyalar (Ceza, Antrenör, Hükmen vb.) otomatik atlanır.
+function driveClassifyFile(name) {
+  const n = (name||'').toUpperCase()
+    .replace(/İ/g,'I')
+    .replace(/Ş/g,'S')
+    .replace(/Ğ/g,'G')
+    .replace(/Ü/g,'U')
+    .replace(/Ö/g,'O')
+    .replace(/Ç/g,'C');
+
+  if (/\d+\s*\.?\s*HAFTA/.test(n)) return 'bolge';
+  if (/OKUL|IL\s*VE\s*ILCE|ILCE/.test(n)) return 'okul';
+  if (/OZEL|ARSIV|UNIVERSITE|UNIV/.test(n)) return 'ozel';
+  return null; // Ceza kararları, hükmen, antrenör vb. atlanır
+}
+
+// Dosya adından hafta numarası çıkart (ör: "5.HAFTA_(28 EYLÜL..." → 5)
+function driveExtractWeekNo(name) {
+  const m = (name||'').match(/(\d{1,2})\s*\.?\s*HAFTA/i);
+  return m ? parseInt(m[1]) : null;
+}
+
+// Drive API'den klasör içeriğini listele (Resource key desteği ile)
+async function fetchDriveFileList(folderId, apiKey) {
+  const url = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents&key=${apiKey}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,mimeType,modifiedTime)&orderBy=name&pageSize=100`;
+  const res = await fetch(url, {
+    headers: {
+      'X-Goog-Drive-Resource-Keys': `${folderId}/${DRIVE_RESOURCE_KEY}`
+    }
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err?.error?.message || 'Drive API hatası: ' + res.status);
+  }
+  const data = await res.json();
+  return (data.files || []).filter(f =>
+    f.mimeType === 'application/vnd.google-apps.spreadsheet' ||
+    f.mimeType === 'text/csv'
+  );
+}
+
+// Google Sheets dosyasını CSV olarak indir (Önce doğrudan Drive API v3, sonra fallback proxy)
+async function fetchSheetAsCsv(fileId, apiKey) {
+  // 1. Doğrudan Google Drive API v3 files.export dene
+  try {
+    const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv&key=${apiKey}`;
+    const res = await fetch(driveUrl, {
+      headers: {
+        'X-Goog-Drive-Resource-Keys': `${fileId}/${DRIVE_RESOURCE_KEY}`
+      }
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().length > 10) return text;
+    }
+  } catch(e) {
+    console.warn('Direct Drive API export failed, trying proxy...', e);
+  }
+
+  // 2. Fallback: Google Sheets export URL + proxy
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv&resourcekey=${DRIVE_RESOURCE_KEY}`;
+  return await fetchWithCorsProxy(sheetUrl);
+}
+
+// Durum panelini güncelle
+function driveSetStatus(msg) {
+  const el = document.getElementById('drive-status');
+  if(el) el.textContent = msg;
+}
+
+// Bulunan maçları önizleme tablolarına render et
+function driveRenderResults() {
+  const total = _drivePendingBolge.length + _drivePendingOkul.length + _drivePendingOzel.length;
+  if(total === 0) {
+    document.getElementById('drive-results-card').style.display='none';
+    return;
+  }
+  document.getElementById('drive-results-card').style.display='';
+  document.getElementById('drive-results-summary').textContent =
+    `${total} yeni maç bulundu — Bölge: ${_drivePendingBolge.length}, Okul: ${_drivePendingOkul.length}, Özel Lig: ${_drivePendingOzel.length}`;
+
+  // --- Bölge Maçları ---
+  const bw = document.getElementById('drive-result-bolge-wrap');
+  const bb = document.getElementById('drive-result-bolge-body');
+  document.getElementById('drive-result-bolge-cnt').textContent = _drivePendingBolge.length;
+  bw.style.display = _drivePendingBolge.length ? '' : 'none';
+  if(bb) {
+    bb.innerHTML = _drivePendingBolge.map(m=>`
+      <tr>
+        <td>${m.tarih||''}</td><td>${m.salon||''}</td><td>${m.saat||''}</td>
+        <td>${m.ev||''}</td><td>${m.dep||''}</td>
+        <td>${m.kat||''}</td><td>${m.grup||''}</td>
+        <td>${m.h1||''}</td><td>${m.h2||''}</td>
+        <td><span class="badge ${(m.h1||'').includes('KEMAL')?'b-orange':'b-blue'}">${myRole(m.h1,m.h2)}</span></td>
+      </tr>`).join('');
+  }
+
+  // --- Okul Maçları ---
+  const ow = document.getElementById('drive-result-okul-wrap');
+  const ob = document.getElementById('drive-result-okul-body');
+  document.getElementById('drive-result-okul-cnt').textContent = _drivePendingOkul.length;
+  ow.style.display = _drivePendingOkul.length ? '' : 'none';
+  if(ob) {
+    ob.innerHTML = _drivePendingOkul.map(m=>`
+      <tr>
+        <td>${m.tarih||''}</td><td>${m.saat||''}</td><td>${m.salon||''}</td>
+        <td>${m.org||''}</td><td>${m.grup||''}</td>
+        <td>${m.h1||''}</td><td>${m.h2||''}</td>
+        <td><span class="badge ${(m.h1||'').includes('KEMAL')?'b-orange':'b-blue'}">${myRole(m.h1,m.h2)}</span></td>
+      </tr>`).join('');
+  }
+
+  // --- Özel Lig Maçları ---
+  const zw = document.getElementById('drive-result-ozel-wrap');
+  const zb = document.getElementById('drive-result-ozel-body');
+  document.getElementById('drive-result-ozel-cnt').textContent = _drivePendingOzel.length;
+  zw.style.display = _drivePendingOzel.length ? '' : 'none';
+  if(zb) {
+    zb.innerHTML = _drivePendingOzel.map(m=>`
+      <tr>
+        <td>${m.tarih||''}</td><td>${m.salon||''}</td><td>${m.saat||''}</td>
+        <td>${m.a||''}</td><td>${m.b||''}</td>
+        <td>${m.org||''}</td><td>${m.kat||''}</td>
+        <td>${m.h1||''}</td><td>${m.h2||''}</td>
+        <td><span class="badge ${(m.h1||'').includes('KEMAL')?'b-orange':'b-blue'}">${myRole(m.h1,m.h2)}</span></td>
+      </tr>`).join('');
+  }
+}
+
+window.driveResetResults = function() {
+  _drivePendingBolge = [];
+  _drivePendingOkul  = [];
+  _drivePendingOzel  = [];
+  document.getElementById('drive-results-card').style.display='none';
+  driveSetStatus('⏳ Taramak için yukarıdaki butona bas.');
+  document.getElementById('drive-files-list').innerHTML = '';
+  document.getElementById('drive-last-check').textContent = 'Henüz taranmadı';
+};
+
+// Ana otomasyon fonksiyonu
+window.driveAutoSync = async function() {
+  const apiKey = (document.getElementById('drive-api-key')?.value || LS.getItem('rt_drive_api_key') || '').trim();
+  const folder = (document.getElementById('drive-folder-id')?.value || LS.getItem('rt_drive_folder_id') || DRIVE_DEFAULT_FOLDER).trim();
+
+  if(!apiKey) {
+    toast('Drive API Key girilmedi! Lütfen ayarları kaydedin.', 'err');
+    driveSetStatus('❌ API Key eksik. Yukarıdaki alana API Key\'ini gir ve "Kaydet" butonuna bas.');
+    return;
+  }
+
+  // Buton devre dışı bırak
+  const btn = document.getElementById('btn-drive-sync');
+  if(btn) { btn.disabled=true; btn.textContent='⏳ Taranıyor...'; }
+
+  _drivePendingBolge = [];
+  _drivePendingOkul  = [];
+  _drivePendingOzel  = [];
+  document.getElementById('drive-results-card').style.display='none';
+  document.getElementById('drive-files-list').innerHTML='';
+
+  let log = '';
+  const addLog = (line) => { log += line + '\n'; driveSetStatus(log.trim()); };
+
+  addLog('🔍 Drive klasörü taranıyor...');
+
+  let files = [];
+  try {
+    files = await fetchDriveFileList(folder, apiKey);
+    addLog(`✅ ${files.length} dosya bulundu.\n`);
+  } catch(e) {
+    addLog('❌ Drive API Hatası: ' + e.message);
+    addLog('\n💡 İpucu: Drive API console.cloud.google.com\'da etkinleştirildi mi?');
+    if(btn) { btn.disabled=false; btn.textContent='🔄 Şimdi Tara & Çek'; }
+    return;
+  }
+
+  if(files.length === 0) {
+    addLog('⚠️ Klasörde dosya bulunamadı.');
+    if(btn) { btn.disabled=false; btn.textContent='🔄 Şimdi Tara & Çek'; }
+    return;
+  }
+
+  // Dosya etiketlerini göster
+  const fileListEl = document.getElementById('drive-files-list');
+  files.forEach(f => {
+    const cat = driveClassifyFile(f.name);
+    const colors = { bolge: 'b-orange', okul: 'b-green', ozel: 'b-blue' };
+    const labels = { bolge: '📋 Bölge', okul: '🏫 Okul', ozel: '🏆 Özel' };
+    const span = document.createElement('span');
+    span.className = 'badge ' + (cat ? colors[cat] : '');
+    span.style.cssText = 'font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;' + (cat?'':'opacity:.4');
+    span.title = f.name;
+    span.textContent = (cat ? labels[cat]+' ' : '⊘ ') + f.name.substring(0,28) + (f.name.length>28?'…':'');
+    fileListEl.appendChild(span);
+  });
+
+  // Her dosyayı tara
+  let targetCount = 0;
+  for (const file of files) {
+    const cat = driveClassifyFile(file.name);
+    if(!cat) {
+      addLog(`⊘ Atlandı: ${file.name} (idari/diğer dosya)`);
+      continue;
+    }
+    targetCount++;
+
+    addLog(`⬇️ İnceleniyor: ${file.name} → [${cat.toUpperCase()}]`);
+    try {
+      const csv = await fetchSheetAsCsv(file.id, apiKey);
+      if(!csv || csv.trim().length < 10) {
+        addLog(`  ⚠️ Boş veya geçersiz veri.`);
+        continue;
+      }
+
+      let found = 0;
+      if(cat === 'bolge') {
+        const rows = parseBolge(csv);
+        if(Array.isArray(rows)) {
+          const mine = rows.filter(r => isMyRow_bolge(r));
+          const weekNo = driveExtractWeekNo(file.name);
+          mine.forEach(r => { _drivePendingBolge.push({...r, weekNo: weekNo || '', _srcFile: file.name}); });
+          found = mine.length;
+        }
+      } else if(cat === 'okul') {
+        const rows = parseOkul(csv);
+        if(Array.isArray(rows)) {
+          const mine = rows.filter(r => isMyRow_okul(r));
+          mine.forEach(r => { _drivePendingOkul.push({...r, _srcFile: file.name}); });
+          found = mine.length;
+        }
+      } else if(cat === 'ozel') {
+        const rows = parseOzel(csv);
+        if(Array.isArray(rows)) {
+          const mine = rows.filter(r => isMyRow_ozel(r));
+          mine.forEach(r => { _drivePendingOzel.push({...r, _srcFile: file.name}); });
+          found = mine.length;
+        }
+      }
+
+      if(found > 0) {
+        addLog(`  🎯 ${found} maç bulundu! (ŞEMSETTİN KEMAL ATAK)`);
+      } else {
+        addLog(`  — Bu tabloda senin maçın yok.`);
+      }
+    } catch(e) {
+      addLog(`  ❌ İndirilemedi: ${e.message.substring(0,60)}`);
+    }
+  }
+
+  const total = _drivePendingBolge.length + _drivePendingOkul.length + _drivePendingOzel.length;
+  const now = new Date().toLocaleTimeString('tr-TR');
+  document.getElementById('drive-last-check').textContent = 'Son tarama: ' + new Date().toLocaleDateString('tr-TR') + ' ' + now;
+  LS.setItem('rt_drive_last_check', Date.now());
+
+  if(total > 0) {
+    addLog(`\n🎉 TOPLAM ${total} MAÇIN BULUNDU!`);
+    driveRenderResults();
+    toast(`🤖 Drive: ${total} yeni maç bulundu!`, 'ok');
+  } else {
+    addLog(`\n✓ Tarama tamamlandı. İlgili dosyalarda adına atanmış maç bulunamadı.`);
+    toast('Drive taraması tamamlandı — yeni maç yok.', 'info');
+  }
+
+  if(btn) { btn.disabled=false; btn.textContent='🔄 Şimdi Tara & Çek'; }
+};
+
+// Yardımcı: satırda benim adım var mı?
+function isMyRow_bolge(r) {
+  return (r.h1||'').toUpperCase().includes('KEMAL ATAK') ||
+         (r.h2||'').toUpperCase().includes('KEMAL ATAK');
+}
+function isMyRow_okul(r) {
+  return (r.h1||'').toUpperCase().includes('KEMAL ATAK') ||
+         (r.h2||'').toUpperCase().includes('KEMAL ATAK');
+}
+function isMyRow_ozel(r) {
+  return (r.h1||'').toUpperCase().includes('KEMAL ATAK') ||
+         (r.h2||'').toUpperCase().includes('KEMAL ATAK');
+}
+
+// Tümünü Firebase'e kaydet
+window.driveSaveAllToFirebase = async function() {
+  const weekNo = parseInt(document.getElementById('drive-bolge-week')?.value || '0') || null;
+  let saved = 0; let skipped = 0;
+
+  const btn = document.getElementById('btn-drive-save-all');
+  if(btn) { btn.disabled=true; btn.textContent='⏳ Kaydediliyor...'; }
+
+  // Bölge Maçları → HAFTA yapısına ekle (Haftalara göre otomatik gruplanır)
+  if(_drivePendingBolge.length > 0) {
+    const byWeek = {};
+    for (const m of _drivePendingBolge) {
+      const wk = weekNo || m.weekNo || 1;
+      if (!byWeek[wk]) byWeek[wk] = [];
+      byWeek[wk].push(m);
+    }
+    for (const [wkStr, list] of Object.entries(byWeek)) {
+      const wk = parseInt(wkStr);
+      try {
+        window._csvData = window._csvData || {};
+        window._csvData['bolge'] = list;
+        window._csvMeta = window._csvMeta || {};
+        window._csvMeta['bolge'] = { week: wk, label: wk + '. Hafta (Drive)', src: 'Drive Otomasyon' };
+        await csvSave('bolge');
+        saved += list.length;
+      } catch(e) { console.error('Bölge kayıt hatası (Hafta ' + wk + '):', e); }
+    }
+  }
+
+  if(_drivePendingOkul.length > 0) {
+    try {
+      window._csvData = window._csvData || {};
+      window._csvData['okul'] = _drivePendingOkul;
+      window._csvMeta = window._csvMeta || {};
+      window._csvMeta['okul'] = { label: 'Drive Otomasyon', src: 'Drive' };
+      await csvSave('okul');
+      saved += _drivePendingOkul.length;
+    } catch(e) { console.error('Okul kayıt hatası', e); }
+  }
+
+  if(_drivePendingOzel.length > 0) {
+    try {
+      window._csvData = window._csvData || {};
+      window._csvData['ozel'] = _drivePendingOzel;
+      window._csvMeta = window._csvMeta || {};
+      window._csvMeta['ozel'] = { label: 'Drive Otomasyon', src: 'Drive' };
+      await csvSave('ozel');
+      saved += _drivePendingOzel.length;
+    } catch(e) { console.error('Özel kayıt hatası', e); }
+  }
+
+  toast(`✅ ${saved} maç Firebase'e kaydedildi!`, 'ok');
+  driveResetResults();
+  if(btn) { btn.disabled=false; btn.textContent='✓ Tümünü Firebase\'e Kaydet'; }
+};
+
+// ═══════════════════════════════════════════════════════════════════
+
+window.fetchFromSheet=async function(cat){
+
+  const urlInp=document.getElementById('sheet-url-'+cat);
+  const url=(urlInp?.value||'').trim();
+  if(!url){
+    toast('Lütfen geçerli bir Google Sheets linki girin','err');
+    return;
+  }
+
+  // Save the URL to localStorage
+  LS.setItem('rt_sheet_url_'+cat, url);
+
+  // UI state updates
+  document.getElementById('csv-'+cat+'-error').style.display='none';
+  document.getElementById('csv-'+cat+'-preview').style.display='none';
+  const prog=document.getElementById('csv-'+cat+'-progress');
+  prog.style.display='';
+  prog.textContent='⏳ Google Sheets\'den veri çekiliyor...';
+  prog.style.background='';
+  prog.style.borderColor='';
+  
+  const btn = document.getElementById('btn-sheet-'+cat);
+  if(btn) btn.disabled = true;
+
+  try {
+    // Extract spreadsheet ID
+    const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (!idMatch) {
+      throw new Error('Geçersiz Google Sheets linki. Lütfen /d/SPREADSHEET_ID formatını içeren bir link girin.');
+    }
+    const sheetId = idMatch[1];
+    const gidMatch = url.match(/[#?&]gid=(\d+)/);
+    const gid = gidMatch ? gidMatch[1] : null;
+
+    let exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+    if (gid) {
+      exportUrl += `&gid=${gid}`;
+    }
+
+    const text = await fetchWithCorsProxy(exportUrl);
+    if (!text || text.trim().length === 0) {
+      throw new Error('Tablo içeriği boş veya alınamadı.');
+    }
+
+    let result;
+    if(cat==='bolge') result=parseBolge(text);
+    else if(cat==='okul') result=parseOkul(text);
+    else result=parseOzel(text);
+
+    if(!result){
+      throw new Error('Tablo verisi ayrıştırılamadı.');
+    }
+    if(result.error){
+      throw new Error(result.error);
+    }
+    if(!result.length){
+      throw new Error('Geçerli maç satırı bulunamadı.');
+    }
+
+    _csvData[cat]=result;
+    renderCsvPreview(cat,result);
+    prog.style.display='none';
+    toast('✓ Google Sheets verisi başarıyla çekildi!', 'ok');
+  } catch (err) {
+    console.error(err);
+    showCsvErr(cat, err.message);
+    prog.style.display='none';
+    toast('Hata oluştu', 'err');
+  } finally {
+    if(btn) btn.disabled = false;
+  }
+};
+
 function renderCsvPreview(cat,rows){
   const mine=rows.filter(r=>myRole2(r.h1,r.h2)!=='—').length;
   let html='';
@@ -1618,16 +2797,18 @@ window.csvSave=async function(cat){
       if(existLT.has(lt)||existK.has(kk)){nSkip++;prog.textContent=`⏳ ${i+1}/${myRows.length} — ${nSkip} zaten mevcut`;continue;}
       try{
         const isFuture=new Date(dateStr+'T'+(r.saat||'23:59'))>=now;
+        const bFee=rol==='Başhakem'?FEES.bolge_1:FEES.bolge_2;
         await addDoc(col,{
           home:r.ev||'—',away:r.dep||'—',
           date:dateStr,time:r.saat||'',
           league:(r.kat||'')+(weekNo?(' — '+weekNo+'. Hafta'):''),
           location:r.salon||'',
           role:rol,
-          fee:FEES.bolge,
+          fee:bFee,
           payment:'Bekleniyor',
           notes:r.grup||'',
           category:'bolge',
+          season:getMatchSeason({date:dateStr}),
           createdAt:new Date().toISOString(),
           csvImported:true
         });
@@ -1685,6 +2866,7 @@ window.csvSave=async function(cat){
           payment:'Bekleniyor',
           notes:'Okul İl ve İlçe',
           category:'okul',
+          season:getMatchSeason({date:dateStr}),
           createdAt:new Date().toISOString(),
           csvImported:true
         });
@@ -1729,8 +2911,9 @@ window.csvSave=async function(cat){
       const dateStr=csvDate(r.tarih)||parseTarih(r.tarih);
       if(!dateStr||dateStr.length<8){nSkip++;continue;}
       const rol=myRole2(r.h1,r.h2);
-      const isGelisim=(r.org||'').toUpperCase().includes('GELİŞİM')||(r.org||'').toUpperCase().includes('GELISIM');
-      const autoFee=isGelisim?FEES.gelisim:0;
+      const orgText=((r.org||'')+' '+(r.kat||'')+' '+(r.a||'')).toUpperCase();
+      const is1700=orgText.includes('GELİŞİM')||orgText.includes('GELISIM')||orgText.includes('MASTER');
+      const autoFee=is1700?1700:0;
       const lt=dateStr+'|'+(r.saat||'')+'|'+(r.salon||'');
       const kk=dateStr+'|'+(r.saat||'')+'|'+(r.a||r.org||'')+'|'+(r.b||'—');
       if(existLT.has(lt)||existK.has(kk)){nSkip++;prog.textContent=`⏳ ${i+1}/${myRows.length} — ${nSkip} zaten mevcut`;continue;}
@@ -1746,6 +2929,7 @@ window.csvSave=async function(cat){
           payment:'Bekleniyor',
           notes:'Özel Lig & Üniversite',
           category:'ozel',
+          season:getMatchSeason({date:dateStr}),
           createdAt:new Date().toISOString(),
           csvImported:true
         });
@@ -1909,8 +3093,52 @@ document.getElementById('today-date').textContent=_now.toLocaleDateString('tr-TR
 const _hr=_now.getHours(),_greet=_hr<12?'Günaydın':_hr<17?'İyi günler':_hr<21?'İyi akşamlar':'İyi geceler';
 const _gEl=document.getElementById('dash-greeting');if(_gEl)_gEl.textContent=_greet;
 document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
+try {
+  document.getElementById('sheet-url-bolge').value=LS.getItem('rt_sheet_url_bolge')||'';
+  document.getElementById('sheet-url-okul').value=LS.getItem('rt_sheet_url_okul')||'';
+  document.getElementById('sheet-url-ozel').value=LS.getItem('rt_sheet_url_ozel')||'';
+} catch(e) { console.error('LocalStorage sheet url restore error:', e); }
+
+// Drive otomasyon ayarlarını yükle + API key kaydet (ilk açılış)
+try {
+  const savedKey = LS.getItem('rt_drive_api_key') || '';
+  if(!savedKey) LS.setItem('rt_drive_api_key', 'AIzaSyDbenw53WTRUm2CWgYIHGDKCEQ0ULInUk0');
+  if(!LS.getItem('rt_drive_folder_id')) LS.setItem('rt_drive_folder_id', '0ByPao_qBUjN-YXJZSG5Fancybmc');
+} catch(e) {}
+
+// Sezon arayüzünü hazırla
+try {
+  const sel = document.getElementById('season-select');
+  if(sel) sel.value = activeSeason;
+  const tag = document.getElementById('side-season-tag');
+  if(tag) {
+    tag.textContent = activeSeason === '2026-2027' ? 'Aktif' : activeSeason === 'all' ? 'Tümü' : 'Arşiv';
+    tag.className = 'badge ' + (activeSeason === '2026-2027' ? 'b-green' : activeSeason === 'all' ? 'b-blue' : 'b-yellow');
+  }
+  const badge = document.getElementById('dash-season-badge');
+  if(badge) {
+    badge.textContent = activeSeason === 'all' ? 'Tüm Sezonlar' : activeSeason + (activeSeason === '2025-2026' ? ' (Arşiv)' : ' (Aktif)');
+    badge.className = 'badge ' + (activeSeason === '2025-2026' ? 'b-yellow' : activeSeason === 'all' ? 'b-blue' : 'b-green');
+  }
+} catch(e) {}
+
 await loadCsvFromStorage();
 setTimeout(()=>{renderHafta();renderOkul();renderOzel();renderStats();},300);
+
+// "Her açılışta tara" aktifse arka planda Drive taraması başlat
+setTimeout(async()=>{
+  try {
+    if(LS.getItem('rt_drive_auto_on_load')==='1') {
+      const lastCheck = parseInt(LS.getItem('rt_drive_last_check')||'0');
+      const hoursSince = (Date.now() - lastCheck) / 3600000;
+      if(hoursSince > 2) { // Son 2 saatten fazla geçmişse yeniden tara
+        toast('🤖 Drive taraması başlatılıyor...', 'info');
+        await driveAutoSync();
+      }
+    }
+  } catch(e) { console.warn('Drive auto-sync error:', e); }
+}, 2000); // Sayfa tam yüklendikten 2 sn sonra
+
 
 }catch(e){
   console.error('Firebase init error:',e);

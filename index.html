@@ -1197,9 +1197,35 @@ function getMatchSeason(m) {
   return (m.date || '') < '2026-08-01' ? '2025-2026' : '2026-2027';
 }
 
+function getMatchKey(m) {
+  if (!m) return '';
+  const d = (m.date || '').trim();
+  const t = (m.time || '').trim().replace('.', ':');
+  const h = (m.home || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const a = (m.away || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const l = (m.location || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  if (h && a && h !== '—' && a !== '—' && h !== '-' && a !== '-') {
+    return `${d}|${t}|${h}|${a}`;
+  }
+  return `${d}|${t}|${h}|${a}|${l}`;
+}
+
 function getSeasonMatches() {
-  if (activeSeason === 'all') return matches;
-  return matches.filter(m => getMatchSeason(m) === activeSeason);
+  const list = activeSeason === 'all' ? matches : matches.filter(m => getMatchSeason(m) === activeSeason);
+  const seenIds = new Set();
+  const seenKeys = new Set();
+  const result = [];
+  for (const m of list) {
+    if (m.id) {
+      if (seenIds.has(m.id)) continue;
+      seenIds.add(m.id);
+    }
+    const key = getMatchKey(m);
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    result.push(m);
+  }
+  return result;
 }
 
 function guessFee(m) {
@@ -1594,8 +1620,10 @@ window.markPaid=async function(id){
 };
 
 window.deleteMatch=async function(id){
-  if(!confirm('Bu maçı silmek istiyormusunuz?'))return;
-  try{await deleteDoc(doc(db,'matches',id));toast('Maç silindi','');}catch(e){toast('Silme hatası','err');}
+  if(!confirm('Bu maçı silmek istediğinizden emin misiniz?'))return;
+  matches=matches.filter(x=>x.id!==id);
+  renderAll();
+  try{await deleteDoc(doc(db,'matches',id));toast('✓ Maç silindi','');}catch(e){toast('Silme hatası: '+e.message,'err');}
 };
 
 window.openEdit=function(id){
@@ -1626,7 +1654,11 @@ window.saveEdit=async function(){
 window.deleteFromEdit=async function(){
   if(!_editId)return;
   if(!confirm('Silmek istediğinizden emin misiniz?'))return;
-  try{await deleteDoc(doc(db,'matches',_editId));closeEdit();toast('Silindi','');}catch(e){toast('Hata','err');}
+  const idToDelete=_editId;
+  closeEdit();
+  matches=matches.filter(x=>x.id!==idToDelete);
+  renderAll();
+  try{await deleteDoc(doc(db,'matches',idToDelete));toast('✓ Silindi','');}catch(e){toast('Hata: '+e.message,'err');}
 };
 
 window.clearForm=function(){
@@ -1838,13 +1870,66 @@ window.copyAppsScriptCode = function() {
   const folderId = LS.getItem('rt_drive_folder_id') || '0ByPao_qBUjN-YXJZSG5Fancybmc';
   
   const code = `/**
- * RefTrack - 7/24 Google Drive & Telegram Otomasyonu
+ * RefTrack - 7/24 Google Drive & Telegram Bulut Otomasyonu
  * (script.google.com üzerinde çalışır)
  */
 const TELEGRAM_BOT_TOKEN = "${token}";
 const TELEGRAM_CHAT_ID   = "${chatId}";
 const DRIVE_FOLDER_ID    = "${folderId}";
-const REFEREE_NAME       = "KEMAL ATAK";
+
+function parseDateGas(val) {
+  if (!val) return "";
+  if (Object.prototype.toString.call(val) === '[object Date]' || val instanceof Date) {
+    return Utilities.formatDate(val, "GMT+3", "yyyy-MM-dd");
+  }
+  const s = String(val).trim();
+  if (/^\\d{4}-\\d{2}-\\d{2}/.test(s)) return s.substring(0, 10);
+  const m2 = s.match(/(\\d{1,2})[./](\\d{1,2})[./](\\d{4})/);
+  if (m2) return m2[3] + '-' + m2[2].padStart(2, '0') + '-' + m2[1].padStart(2, '0');
+  const ayMap = {'ocak':'01','subat':'02','şubat':'02','mart':'03','nisan':'04','mayis':'05','mayıs':'05','haziran':'06','temmuz':'07','agustos':'08','ağustos':'08','eylul':'09','eylül':'09','ekim':'10','kasim':'11','kasım':'11','aralik':'12','aralık':'12'};
+  const m1 = s.match(/(\\d{1,2})\\s+([a-zA-ZçğıöşüÇĞİÖŞÜ]+)\\s+(\\d{4})/);
+  if (m1) {
+    const normAy = m1[2].toLowerCase().replace(/ı/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c');
+    const ay = ayMap[normAy] || '01';
+    return m1[3] + '-' + ay + '-' + m1[1].padStart(2, '0');
+  }
+  return "";
+}
+
+function isMyReferee(str) {
+  if (!str) return false;
+  const n = String(str).toUpperCase().replace(/İ/g,'I').replace(/ı/g,'I').replace(/Ş/g,'S').replace(/ş/g,'S');
+  return n.includes("KEMAL") && n.includes("ATAK");
+}
+
+function scanSheetForMatches(sheet, fileName, results) {
+  const data = sheet.getDataRange().getValues();
+  if (!data || !data.length) return;
+  let currentDate = "";
+  for (let r = 0; r < data.length; r++) {
+    const row = data[r];
+    for (let c = 0; c < Math.min(row.length, 4); c++) {
+      const d = parseDateGas(row[c]);
+      if (d) { currentDate = d; break; }
+    }
+    if (isMyReferee(row.join(" "))) {
+      let time = "", role = "2. Hakem";
+      for (let c = 0; c < row.length; c++) {
+        const val = String(row[c] || "").trim();
+        if (!time && /^\\d{1,2}[:.]\\d{2}$/.test(val)) time = val.replace(".", ":");
+        if (isMyReferee(val) && (c === 7 || c === 8 || val.includes("1") || val.includes("Baş"))) role = "Başhakem";
+      }
+      const home = (row[3] && !isMyReferee(row[3])) ? String(row[3]).trim() : "Takım A";
+      const away = (row[4] && !isMyReferee(row[4])) ? String(row[4]).trim() : "Takım B";
+      const loc = (row[1] && typeof row[1] === 'string' && row[1].length > 3) ? String(row[1]).trim() : "";
+      results.push({
+        fileName: fileName,
+        date: currentDate || parseDateGas(row.join(" ")) || Utilities.formatDate(new Date(), "GMT+3", "yyyy-MM-dd"),
+        time: time, role: role, home: home, away: away, location: loc
+      });
+    }
+  }
+}
 
 function gunlukMacKontrolu() {
   const folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
@@ -1855,30 +1940,48 @@ function gunlukMacKontrolu() {
 
   while (files.hasNext()) {
     const file = files.next();
-    const fileName = file.getName().toLowerCase();
-    if (!fileName.includes("hafta") && !fileName.includes("okul") && !fileName.includes("özel") && !fileName.includes("ozel") && !fileName.includes("üni") && !fileName.includes("uni")) continue;
+    const fn = file.getName().toLowerCase();
+    if (!fn.includes("hafta") && !fn.includes("okul") && !fn.includes("özel") && !fn.includes("ozel") && !fn.includes("üni") && !fn.includes("uni")) continue;
     try {
       if (file.getMimeType() === MimeType.GOOGLE_SHEETS) {
         const ss = SpreadsheetApp.openById(file.getId());
-        for (const sheet of ss.getSheets()) {
-          const data = sheet.getDataRange().getValues();
-          for (let r = 0; r < data.length; r++) {
-            const rowStr = data[r].join(" ").toUpperCase();
-            if (rowStr.includes(REFEREE_NAME)) {
-              matchesFound.push({ file: file.getName(), raw: data[r].filter(Boolean).slice(0,8).join(" | ") });
-            }
-          }
-        }
+        for (const sheet of ss.getSheets()) scanSheetForMatches(sheet, file.getName(), matchesFound);
       }
     } catch(e) {}
   }
-  if (matchesFound.length > 0) {
-    const text = "🏀 <b>RefTrack Bulut Kontrolü</b>\\n\\n" + matchesFound.length + " maç tespit edildi!\\n\\n" + matchesFound.map(m=>"• " + m.file + "\\n  " + m.raw).join("\\n\\n");
-    UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage", {
-      method: "post", contentType: "application/json",
-      payload: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: text, parse_mode: "HTML" })
-    });
+  if (!matchesFound.length) return;
+
+  const props = PropertiesService.getScriptProperties();
+  const todayMatches = matchesFound.filter(m => m.date === today);
+  for (const m of todayMatches) {
+    const k = "sent_today_" + m.date + "_" + m.time + "_" + m.home;
+    if (!props.getProperty(k)) {
+      sendRawTelegram("🏀 <b>BUGÜN MAÇIN VAR!</b>\\n\\n⚔️ <b>" + m.home + " — " + m.away + "</b>\\n📅 Tarih: <b>" + m.date + " " + (m.time||"") + "</b>\\n📍 Salon: <b>" + (m.location||"—") + "</b>\\n👤 Görev: <b>" + m.role + "</b>\\n📁 Dosya: <i>" + m.fileName + "</i>");
+      props.setProperty(k, "true");
+    }
   }
+  if (new Date().getHours() >= 18) {
+    const tomMatches = matchesFound.filter(m => m.date === tomorrow);
+    for (const m of tomMatches) {
+      const k = "sent_tom_" + m.date + "_" + m.time + "_" + m.home;
+      if (!props.getProperty(k)) {
+        sendRawTelegram("📅 <b>YARIN MAÇIN VAR!</b>\\n\\n⚔️ <b>" + m.home + " — " + m.away + "</b>\\n📅 Tarih: <b>" + m.date + " " + (m.time||"") + "</b>\\n📍 Salon: <b>" + (m.location||"—") + "</b>\\n👤 Görev: <b>" + m.role + "</b>\\n📁 Dosya: <i>" + m.fileName + "</i>");
+        props.setProperty(k, "true");
+      }
+    }
+  }
+}
+
+function sendRawTelegram(text) {
+  if (TELEGRAM_BOT_TOKEN.includes("BURAYA")) return;
+  UrlFetchApp.fetch("https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage", {
+    method: "post", contentType: "application/json",
+    payload: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: text, parse_mode: "HTML" })
+  });
+}
+
+function testTelegramGonder() {
+  sendRawTelegram("🏀 <b>RefTrack Bulut Sistemi Test Mesajı!</b>\\n\\nGoogle Apps Script bot entegrasyonu başarıyla çalışıyor! 7/24 otomatik kontroller aktif.");
 }
 
 function kurulumuYap() {
@@ -2606,8 +2709,9 @@ window.driveSaveAllToFirebase = async function() {
   let skipped = 0;
   const newMatchesForTg = [];
 
-  const existLT = new Set(matches.map(m => m.date + '|' + (m.time || '') + '|' + (m.location || '')));
-  const existK = new Set(matches.map(m => m.date + '|' + (m.time || '') + '|' + (m.home || '') + '|' + (m.away || '')));
+  const existKeys = new Set(matches.map(m => getMatchKey(m)));
+  const existLT = new Set(matches.map(m => m.date + '|' + (m.time || '').replace('.', ':') + '|' + (m.location || '').trim().toUpperCase()));
+  const existK = new Set(matches.map(m => m.date + '|' + (m.time || '').replace('.', ':') + '|' + (m.home || '').trim().toUpperCase() + '|' + (m.away || '').trim().toUpperCase()));
 
   // 1. BÖLGE MAÇLARI
   for (const m of _drivePendingBolge) {
@@ -2615,22 +2719,28 @@ window.driveSaveAllToFirebase = async function() {
     const rol = myRole(m.h1, m.h2);
     const bFee = rol === 'Başhakem' ? FEES.bolge_1 : FEES.bolge_2;
     const wk = m.weekNo || 1;
-    const lt = dateStr + '|' + (m.saat || '') + '|' + (m.salon || '');
-    const kk = dateStr + '|' + (m.saat || '') + '|' + (m.ev || '') + '|' + (m.dep || '');
+    const mTime = (m.saat || '').replace('.', ':');
+    const mHome = (m.ev || '—').trim();
+    const mAway = (m.dep || '—').trim();
+    const mLoc = (m.salon || '').trim();
 
-    if (existLT.has(lt) || existK.has(kk)) {
+    const mKey = getMatchKey({ date: dateStr, time: mTime, home: mHome, away: mAway, location: mLoc });
+    const lt = dateStr + '|' + mTime + '|' + mLoc.toUpperCase();
+    const kk = dateStr + '|' + mTime + '|' + mHome.toUpperCase() + '|' + mAway.toUpperCase();
+
+    if (existKeys.has(mKey) || existLT.has(lt) || existK.has(kk)) {
       skipped++;
       continue;
     }
 
     try {
       const docData = {
-        home: m.ev || '—',
-        away: m.dep || '—',
+        home: mHome,
+        away: mAway,
         date: dateStr,
-        time: m.saat || '',
+        time: mTime,
         league: (m.kat || '') + (wk ? (' — ' + wk + '. Hafta') : ''),
-        location: m.salon || '',
+        location: mLoc,
         role: rol,
         fee: bFee,
         payment: 'Bekleniyor',
@@ -2641,7 +2751,10 @@ window.driveSaveAllToFirebase = async function() {
         csvImported: true
       };
       const docRef = await addDoc(col, docData);
-      matches.push({ id: docRef.id, ...docData });
+      if (!matches.some(x => x.id === docRef.id)) {
+        matches.push({ id: docRef.id, ...docData });
+      }
+      existKeys.add(mKey);
       existLT.add(lt);
       existK.add(kk);
       saved++;
@@ -2653,21 +2766,27 @@ window.driveSaveAllToFirebase = async function() {
   for (const m of _drivePendingOkul) {
     const dateStr = parseTarih(m.tarih);
     const rol = myRole(m.h1, m.h2);
-    const lt = dateStr + '|' + (m.saat || '') + '|' + (m.salon || '');
+    const mTime = (m.saat || '').replace('.', ':');
+    const mHome = (m.org || '—').trim();
+    const mAway = (m.grup || '—').trim();
+    const mLoc = (m.salon || '').trim();
 
-    if (existLT.has(lt)) {
+    const mKey = getMatchKey({ date: dateStr, time: mTime, home: mHome, away: mAway, location: mLoc });
+    const lt = dateStr + '|' + mTime + '|' + mLoc.toUpperCase();
+
+    if (existKeys.has(mKey) || existLT.has(lt)) {
       skipped++;
       continue;
     }
 
     try {
       const docData = {
-        home: m.org || '—',
-        away: m.grup || '—',
+        home: mHome,
+        away: mAway,
         date: dateStr,
-        time: m.saat || '',
+        time: mTime,
         league: (m.org || '') + (m.org ? ' — Okul İl/İlçe' : 'Okul İl/İlçe'),
-        location: m.salon || '',
+        location: mLoc,
         role: rol,
         fee: FEES.okul,
         payment: 'Bekleniyor',
@@ -2678,7 +2797,10 @@ window.driveSaveAllToFirebase = async function() {
         csvImported: true
       };
       const docRef = await addDoc(col, docData);
-      matches.push({ id: docRef.id, ...docData });
+      if (!matches.some(x => x.id === docRef.id)) {
+        matches.push({ id: docRef.id, ...docData });
+      }
+      existKeys.add(mKey);
       existLT.add(lt);
       saved++;
       newMatchesForTg.push(docData);
@@ -2692,22 +2814,28 @@ window.driveSaveAllToFirebase = async function() {
     const orgText = ((m.org || '') + ' ' + (m.kat || '') + ' ' + (m.a || '')).toUpperCase();
     const is1700 = orgText.includes('GELİŞİM') || orgText.includes('GELISIM') || orgText.includes('MASTER');
     const autoFee = is1700 ? 1700 : 0;
-    const lt = dateStr + '|' + (m.saat || '') + '|' + (m.salon || '');
-    const kk = dateStr + '|' + (m.saat || '') + '|' + (m.a || m.org || '') + '|' + (m.b || '—');
+    const mTime = (m.saat || '').replace('.', ':');
+    const mHome = (m.a || m.org || '—').trim();
+    const mAway = (m.b || '—').trim();
+    const mLoc = (m.salon || '').trim();
 
-    if (existLT.has(lt) || existK.has(kk)) {
+    const mKey = getMatchKey({ date: dateStr, time: mTime, home: mHome, away: mAway, location: mLoc });
+    const lt = dateStr + '|' + mTime + '|' + mLoc.toUpperCase();
+    const kk = dateStr + '|' + mTime + '|' + mHome.toUpperCase() + '|' + mAway.toUpperCase();
+
+    if (existKeys.has(mKey) || existLT.has(lt) || existK.has(kk)) {
       skipped++;
       continue;
     }
 
     try {
       const docData = {
-        home: m.a || m.org || '—',
-        away: m.b || '—',
+        home: mHome,
+        away: mAway,
         date: dateStr,
-        time: m.saat || '',
+        time: mTime,
         league: m.org || '',
-        location: m.salon || '',
+        location: mLoc,
         role: rol,
         fee: autoFee,
         payment: 'Bekleniyor',
@@ -2718,11 +2846,12 @@ window.driveSaveAllToFirebase = async function() {
         csvImported: true
       };
       const docRef = await addDoc(col, docData);
-      matches.push({ id: docRef.id, ...docData });
+      if (!matches.some(x => x.id === docRef.id)) {
+        matches.push({ id: docRef.id, ...docData });
+      }
+      existKeys.add(mKey);
       existLT.add(lt);
       existK.add(kk);
-      saved++;
-      newMatchesForTg.push(docData);
     } catch(e) { console.error('Özel lig maç kayıt hatası:', e); }
   }
 
@@ -3173,10 +3302,37 @@ function showCsvErr(cat,msg){const el=document.getElementById('csv-'+cat+'-error
 // ─── REALTIME ─────────────────────────────────────────
 const q=query(col,orderBy('date','asc'));
 onSnapshot(q,snap=>{
-  matches=snap.docs.map(d=>({id:d.id,...d.data()}));
+  const seenIds = new Set();
+  const seenKeys = new Set();
+  const cleanMatches = [];
+  const dupDocIds = [];
+
+  for (const d of snap.docs) {
+    if (seenIds.has(d.id)) continue;
+    seenIds.add(d.id);
+
+    const item = { id: d.id, ...d.data() };
+    const key = getMatchKey(item);
+    if (key && key !== '|||' && key !== '||||') {
+      if (seenKeys.has(key)) {
+        console.warn('Firestore mükerrer maç tespit edildi, arkaplanda temizleniyor:', d.id, key);
+        dupDocIds.push(d.id);
+        continue;
+      }
+      seenKeys.add(key);
+    }
+    cleanMatches.push(item);
+  }
+
+  // Veritabanındaki fazlalık mükerrer kayıtları temizle
+  dupDocIds.forEach(dupId => {
+    deleteDoc(doc(db, 'matches', dupId)).catch(e => console.warn('Dupe cleanup error:', e));
+  });
+
+  matches = cleanMatches;
   setSync('');renderAll();
   document.getElementById('loading').style.display='none';
-  if(_firstLoad){_firstLoad=false;/* autoSync devre dışı — duplicate sorununu engeller */}
+  if(_firstLoad){_firstLoad=false;}
 },err=>{
   setSync('error');toast('Firebase hatası: '+err.message,'err');
   document.getElementById('loading').style.display='none';
